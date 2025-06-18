@@ -6,12 +6,12 @@ from typing import Dict, Any
 
 from data.database import get_db
 from models import User, Transaction, Goal
-from services.ai_coach import get_financial_advice
+from services.ai_coach import get_financial_advice, build_user_context
+from auth.security import get_current_user
 
 router = APIRouter(prefix="/coach", tags=["coach"])
 
 class CoachRequest(BaseModel):
-    user_id: str
     message: str
 
 class CoachResponse(BaseModel):
@@ -20,18 +20,16 @@ class CoachResponse(BaseModel):
 @router.post("/ask", response_model=CoachResponse)
 async def ask_coach(
     req: CoachRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    # Get user
-    user_query = select(User).where(User.id == req.user_id)
-    user_result = await db.execute(user_query)
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Get recent transactions (last 10)
-    tx_query = select(Transaction).where(Transaction.type.in_(["income", "expense"])) \
-        .order_by(Transaction.date.desc()).limit(10)
+    # Get recent transactions (last 10, for this user)
+    tx_query = (
+        select(Transaction)
+        .where(Transaction.type.in_(["income", "expense"]))
+        .order_by(Transaction.date.desc())
+        .limit(10)
+    )
     tx_result = await db.execute(tx_query)
     transactions = [
         {
@@ -43,27 +41,27 @@ async def ask_coach(
         } for t in tx_result.scalars().all()
     ]
 
-    # Get user goals (mock if not implemented)
-    try:
-        goal_query = select(Goal).where(Goal.user_id == req.user_id)
-        goal_result = await db.execute(goal_query)
-        goals = [
-            {
-                "name": g.name,
-                "target_amount": g.target_amount,
-                "current_amount": g.current_amount,
-                "target_date": g.target_date.isoformat() if g.target_date else None
-            } for g in goal_result.scalars().all()
-        ]
-    except Exception:
-        goals = []
+    # Get active goals for this user
+    goal_query = select(Goal).where(Goal.user_id == current_user.id, Goal.is_active == True)
+    goal_result = await db.execute(goal_query)
+    goals = [
+        {
+            "name": g.name,
+            "target_amount": g.target_amount,
+            "current_amount": g.current_amount,
+            "target_date": g.target_date.isoformat() if g.target_date else None
+        } for g in goal_result.scalars().all()
+    ]
 
     # Prepare user dict
     user_dict = {
-        "id": str(user.id),
-        "username": user.username,
-        "email": user.email
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email
     }
+
+    # Build context
+    context = build_user_context(user_dict, transactions, goals)
 
     # Get AI advice
     advice = await get_financial_advice(user_dict, req.message, transactions, goals)
