@@ -1,0 +1,63 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Editor and IDE settings
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Cursor AI editor
+.cursor/
+.cursor-config.json
+
+# Docker
+.dockerignore
+
+# Logs
+logs/
+*.log
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Alembic migration scripts (keep folder, ignore scripts)
+alembic/versions/*.py
+
+# System/temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build/dist
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# Test/coverage
+.coverage
+.pytest_cache/
+
+# Local development
+.local/
