@@ -9,6 +9,7 @@ import uuid
 from data.database import get_db
 from models import Budget, Transaction, User
 from utils.filters import get_summary_filters
+from auth.security import get_current_active_user
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
@@ -54,9 +55,14 @@ class BudgetStatus(BaseModel):
 @router.post("/", response_model=BudgetResponse)
 async def create_budget(
     budget: BudgetCreate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new budget"""
+    """Create a new budget for the authenticated user"""
+    # Users can only create budgets for themselves
+    if str(budget.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to create budget for another user")
+    
     # Validate period
     if budget.period not in ["monthly", "weekly", "yearly"]:
         raise HTTPException(status_code=400, detail="Period must be 'monthly', 'weekly', or 'yearly'")
@@ -96,16 +102,13 @@ async def create_budget(
 
 @router.get("/", response_model=List[BudgetResponse])
 async def get_budgets(
-    user_id: Optional[uuid.UUID] = Query(None, description="Filter by user ID"),
     category: Optional[str] = Query(None, description="Filter by category"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get budgets with optional filtering"""
-    query = select(Budget)
-    
-    if user_id:
-        query = query.where(Budget.user_id == user_id)
+    """Get budgets for the authenticated user with optional filtering"""
+    query = select(Budget).where(Budget.user_id == current_user.id)
     
     if category:
         query = query.where(Budget.category == category)
@@ -123,10 +126,14 @@ async def get_budgets(
 @router.get("/{budget_id}", response_model=BudgetResponse)
 async def get_budget(
     budget_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get a specific budget by ID"""
-    query = select(Budget).where(Budget.id == budget_id)
+    """Get a specific budget by ID (only if owned by current user)"""
+    query = select(Budget).where(
+        Budget.id == budget_id,
+        Budget.user_id == current_user.id
+    )
     result = await db.execute(query)
     budget = result.scalar_one_or_none()
     
@@ -139,10 +146,14 @@ async def get_budget(
 async def update_budget(
     budget_id: uuid.UUID,
     budget_update: BudgetUpdate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update a budget"""
-    query = select(Budget).where(Budget.id == budget_id)
+    """Update a budget (only if owned by current user)"""
+    query = select(Budget).where(
+        Budget.id == budget_id,
+        Budget.user_id == current_user.id
+    )
     result = await db.execute(query)
     budget = result.scalar_one_or_none()
     
@@ -166,10 +177,14 @@ async def update_budget(
 @router.delete("/{budget_id}")
 async def delete_budget(
     budget_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a budget"""
-    query = select(Budget).where(Budget.id == budget_id)
+    """Delete a budget (only if owned by current user)"""
+    query = select(Budget).where(
+        Budget.id == budget_id,
+        Budget.user_id == current_user.id
+    )
     result = await db.execute(query)
     budget = result.scalar_one_or_none()
     
@@ -184,11 +199,15 @@ async def delete_budget(
 @router.get("/{budget_id}/status", response_model=BudgetStatus)
 async def get_budget_status(
     budget_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get budget status with spending information"""
+    """Get budget status with spending information (only if owned by current user)"""
     # Get budget
-    budget_query = select(Budget).where(Budget.id == budget_id)
+    budget_query = select(Budget).where(
+        Budget.id == budget_id,
+        Budget.user_id == current_user.id
+    )
     budget_result = await db.execute(budget_query)
     budget = budget_result.scalar_one_or_none()
     
@@ -241,9 +260,14 @@ async def get_budget_status(
 @router.get("/user/{user_id}/overview", response_model=List[BudgetStatus])
 async def get_user_budgets_overview(
     user_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get overview of all active budgets for a user"""
+    """Get overview of all active budgets for a user (own budgets only)"""
+    # Users can only access their own budget overview
+    if str(current_user.id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's budget overview")
+    
     # Check if user exists
     user_query = select(User).where(User.id == user_id)
     user_result = await db.execute(user_query)
@@ -272,6 +296,7 @@ async def get_user_budgets_overview(
         
         spent_query = select(func.sum(Transaction.amount)).where(
             and_(
+                Transaction.user_id == user_id,  # Add user_id filter
                 Transaction.category == budget.category,
                 Transaction.type == "expense",
                 Transaction.date >= start_date,

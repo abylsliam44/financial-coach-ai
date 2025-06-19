@@ -9,6 +9,7 @@ import uuid
 from data.database import get_db
 from models import Transaction, User
 from utils.filters import get_summary_filters
+from auth.security import get_current_active_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -53,13 +54,23 @@ async def get_spending_trends(
     period: str = Query("monthly", description="Period: daily, weekly, monthly, yearly"),
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get spending trends over time"""
+    """Get spending trends over time for the authenticated user"""
     if period not in ["daily", "weekly", "monthly", "yearly"]:
         raise HTTPException(status_code=400, detail="Period must be daily, weekly, monthly, or yearly")
     
-    filters = get_summary_filters(start_date, end_date)
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     if period == "daily":
         group_by = func.date(Transaction.date)
@@ -80,7 +91,7 @@ async def get_spending_trends(
         func.count(Transaction.id).label("transaction_count"),
         func.avg(Transaction.amount).label("average_amount")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         group_by
     ).order_by(
@@ -104,14 +115,24 @@ async def get_spending_trends(
 async def get_category_insights(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get detailed insights for each expense category"""
-    filters = get_summary_filters(start_date, end_date)
+    """Get detailed insights for each expense category for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     # Get total expenses for percentage calculation
     total_query = select(func.sum(Transaction.amount)).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     )
     total_result = await db.execute(total_query)
     total_expenses = total_result.scalar() or 0.0
@@ -123,7 +144,7 @@ async def get_category_insights(
         func.count(Transaction.id).label("transaction_count"),
         func.avg(Transaction.amount).label("average_amount")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         Transaction.category
     ).order_by(
@@ -154,9 +175,10 @@ async def get_category_insights(
 @router.get("/monthly-comparison", response_model=List[MonthlyComparison])
 async def get_monthly_comparison(
     year: int = Query(..., description="Year to analyze"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Compare monthly income vs expenses for a specific year"""
+    """Compare monthly income vs expenses for a specific year for the authenticated user"""
     start_date = date(year, 1, 1)
     end_date = date(year, 12, 31)
     
@@ -167,6 +189,7 @@ async def get_monthly_comparison(
         Transaction.type
     ).where(
         and_(
+            Transaction.user_id == current_user.id,
             Transaction.date >= start_date,
             Transaction.date <= end_date
         )
@@ -219,10 +242,20 @@ async def get_monthly_comparison(
 async def get_spending_patterns(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Analyze spending patterns by day of week"""
-    filters = get_summary_filters(start_date, end_date)
+    """Analyze spending patterns by day of week for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     query = select(
         extract('dow', Transaction.date).label("day_of_week"),
@@ -230,7 +263,7 @@ async def get_spending_patterns(
         func.count(Transaction.id).label("transaction_count"),
         func.avg(Transaction.amount).label("average_amount")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         extract('dow', Transaction.date)
     ).order_by(
@@ -257,17 +290,27 @@ async def get_spending_patterns(
 async def get_financial_health(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get overall financial health metrics"""
-    filters = get_summary_filters(start_date, end_date)
+    """Get overall financial health metrics for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     # Get total income and expenses
     income_query = select(func.sum(Transaction.amount)).where(
-        and_(Transaction.type == "income", *filters)
+        and_(Transaction.type == "income", *base_filters)
     )
     expense_query = select(func.sum(Transaction.amount)).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     )
     
     income_result = await db.execute(income_query)
@@ -285,7 +328,7 @@ async def get_financial_health(
         Transaction.category,
         func.sum(Transaction.amount).label("total")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         Transaction.category
     ).order_by(
@@ -301,7 +344,7 @@ async def get_financial_health(
         Transaction.category,
         func.count(Transaction.id).label("count")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         Transaction.category
     ).order_by(
@@ -316,7 +359,7 @@ async def get_financial_health(
     days_query = select(
         func.count(func.distinct(func.date(Transaction.date)))
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     )
     
     days_result = await db.execute(days_query)
@@ -328,7 +371,7 @@ async def get_financial_health(
         func.date(Transaction.date).label("date"),
         func.sum(Transaction.amount).label("daily_total")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         func.date(Transaction.date)
     )
@@ -355,9 +398,14 @@ async def get_financial_health(
 @router.get("/user/{user_id}/dashboard")
 async def get_user_dashboard(
     user_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get comprehensive dashboard data for a user"""
+    """Get comprehensive dashboard data for a user (own dashboard only)"""
+    # Users can only access their own dashboard
+    if str(current_user.id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's dashboard")
+    
     # Check if user exists
     user_query = select(User).where(User.id == user_id)
     user_result = await db.execute(user_query)
@@ -371,12 +419,14 @@ async def get_user_dashboard(
     # Get monthly summary
     monthly_income_query = select(func.sum(Transaction.amount)).where(
         and_(
+            Transaction.user_id == user_id,
             Transaction.type == "income",
             Transaction.date >= start_of_month
         )
     )
     monthly_expense_query = select(func.sum(Transaction.amount)).where(
         and_(
+            Transaction.user_id == user_id,
             Transaction.type == "expense",
             Transaction.date >= start_of_month
         )
@@ -394,6 +444,7 @@ async def get_user_dashboard(
         func.sum(Transaction.amount).label("total")
     ).where(
         and_(
+            Transaction.user_id == user_id,
             Transaction.type == "expense",
             Transaction.date >= start_of_month
         )
@@ -410,7 +461,9 @@ async def get_user_dashboard(
     ]
     
     # Get recent transactions
-    recent_transactions_query = select(Transaction).order_by(
+    recent_transactions_query = select(Transaction).where(
+        Transaction.user_id == user_id
+    ).order_by(
         Transaction.date.desc()
     ).limit(10)
     

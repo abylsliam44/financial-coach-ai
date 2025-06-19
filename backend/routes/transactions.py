@@ -4,22 +4,35 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, date
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 
 from data.database import get_db
-from models import Transaction
+from models import Transaction, User, UserProfile, UserStats
+from auth.security import get_current_active_user
 from utils.filters import apply_transaction_filters
+from utils.gamification import update_user_stats
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 # Pydantic models for request/response
 class TransactionCreate(BaseModel):
-    amount: float
-    type: str  # "income" or "expense"
-    category: str
-    description: Optional[str] = None
-    date: Optional[datetime] = None
+    amount: float = Field(..., description="Transaction amount", example=1000.0)
+    type: str = Field(..., description="Type of transaction: 'income' or 'expense'", example="expense")
+    category: str = Field(..., description="Transaction category", example="Charity")
+    description: Optional[str] = Field(None, description="Description of the transaction", example="Donation to charity")
+    date: Optional[datetime] = Field(None, description="Transaction date (ISO 8601)", example="2025-06-19T10:52:00Z")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "amount": 1000.0,
+                "type": "expense",
+                "category": "Charity",
+                "description": "Donation to charity",
+                "date": "2025-06-19T10:52:00Z"
+            }
+        }
 
 class TransactionUpdate(BaseModel):
     amount: Optional[float] = None
@@ -30,6 +43,7 @@ class TransactionUpdate(BaseModel):
 
 class TransactionResponse(BaseModel):
     id: uuid.UUID
+    user_id: uuid.UUID
     amount: float
     type: str
     category: str
@@ -39,28 +53,89 @@ class TransactionResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.post("/", response_model=TransactionResponse)
+class TransactionWithStatsResponse(BaseModel):
+    transaction: TransactionResponse
+    xp_gained: int
+    minutes_lost: int
+    level_gained: int
+    new_level: int
+    new_streak: int
+
+@router.post("/", response_model=TransactionWithStatsResponse)
 async def create_transaction(
     transaction: TransactionCreate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new transaction"""
+    """Create a new transaction with gamification updates"""
     if transaction.type.lower() not in ["income", "expense"]:
         raise HTTPException(status_code=400, detail="Type must be 'income' or 'expense'")
     
+    # Get or create user profile
+    profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
+    profile_result = await db.execute(profile_query)
+    profile = profile_result.scalar_one_or_none()
+    
+    if not profile:
+        raise HTTPException(
+            status_code=400, 
+            detail="User profile not found. Please complete your profile setup first using POST /user-profile/."
+        )
+    
+    # Get or create user stats
+    stats_query = select(UserStats).where(UserStats.user_id == current_user.id)
+    stats_result = await db.execute(stats_query)
+    user_stats = stats_result.scalar_one_or_none()
+    
+    if not user_stats:
+        user_stats = UserStats(user_id=current_user.id)
+        db.add(user_stats)
+        await db.flush()
+    
+    # Create transaction
     db_transaction = Transaction(
+        user_id=current_user.id,
         amount=transaction.amount,
         type=transaction.type.lower(),
         category=transaction.category,
         description=transaction.description,
-        date=transaction.date
+        date=transaction.date or datetime.now()
     )
     
     db.add(db_transaction)
+    await db.flush()
+    
+    # Update gamification stats (only for expenses)
+    xp_gained = 0
+    minutes_lost = 0
+    level_gained = 0
+    
+    if transaction.type.lower() == "expense":
+        transaction_date = db_transaction.date.date()
+        xp_gained, minutes_lost, level_gained = update_user_stats(
+            user_stats, profile, transaction.amount, transaction_date
+        )
+    
     await db.commit()
     await db.refresh(db_transaction)
+    await db.refresh(user_stats)
     
-    return db_transaction
+    return TransactionWithStatsResponse(
+        transaction=TransactionResponse(
+            id=db_transaction.id,
+            user_id=db_transaction.user_id,
+            amount=db_transaction.amount,
+            type=db_transaction.type,
+            category=db_transaction.category,
+            description=db_transaction.description,
+            date=db_transaction.date
+        ),
+        xp_gained=xp_gained,
+        minutes_lost=minutes_lost,
+        level_gained=level_gained,
+        new_level=user_stats.level,
+        new_streak=user_stats.streak
+    )
 
 @router.get("/", response_model=List[TransactionResponse])
 async def get_transactions(
@@ -69,10 +144,11 @@ async def get_transactions(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
     search: Optional[str] = Query(None, description="Search in description and category"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all transactions with optional filtering"""
-    query = select(Transaction).order_by(Transaction.date.desc())
+    """Get all transactions for the current user with optional filtering"""
+    query = select(Transaction).where(Transaction.user_id == current_user.id).order_by(Transaction.date.desc())
     
     # Apply filters
     query = apply_transaction_filters(
@@ -92,10 +168,14 @@ async def get_transactions(
 @router.get("/{transaction_id}", response_model=TransactionResponse)
 async def get_transaction(
     transaction_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get a specific transaction by ID"""
-    query = select(Transaction).where(Transaction.id == transaction_id)
+    """Get a specific transaction by ID (only if owned by current user)"""
+    query = select(Transaction).where(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    )
     result = await db.execute(query)
     transaction = result.scalar_one_or_none()
     
@@ -108,10 +188,14 @@ async def get_transaction(
 async def update_transaction(
     transaction_id: uuid.UUID,
     transaction_update: TransactionUpdate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update a transaction"""
-    query = select(Transaction).where(Transaction.id == transaction_id)
+    """Update a transaction (only if owned by current user)"""
+    query = select(Transaction).where(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    )
     result = await db.execute(query)
     transaction = result.scalar_one_or_none()
     
@@ -138,10 +222,14 @@ async def update_transaction(
 @router.delete("/{transaction_id}")
 async def delete_transaction(
     transaction_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a transaction"""
-    query = select(Transaction).where(Transaction.id == transaction_id)
+    """Delete a transaction (only if owned by current user)"""
+    query = select(Transaction).where(
+        Transaction.id == transaction_id,
+        Transaction.user_id == current_user.id
+    )
     result = await db.execute(query)
     transaction = result.scalar_one_or_none()
     

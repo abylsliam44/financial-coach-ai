@@ -11,3 +11,4 @@ passlib[bcrypt]==1.7.4
 psycopg2-binary
 python-multipart==0.0.6
 openai==1.30.1
+ 

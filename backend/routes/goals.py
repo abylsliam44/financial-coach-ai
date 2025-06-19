@@ -9,6 +9,7 @@ import uuid
 from data.database import get_db
 from models import Goal, Transaction, User
 from utils.filters import get_summary_filters
+from auth.security import get_current_active_user
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -57,9 +58,14 @@ class GoalProgress(BaseModel):
 @router.post("/", response_model=GoalResponse)
 async def create_goal(
     goal: GoalCreate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new financial goal"""
+    """Create a new financial goal for the authenticated user"""
+    # Users can only create goals for themselves
+    if str(goal.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Not authorized to create goal for another user")
+    
     # Check if user exists
     user_query = select(User).where(User.id == goal.user_id)
     user_result = await db.execute(user_query)
@@ -91,17 +97,14 @@ async def create_goal(
 
 @router.get("/", response_model=List[GoalResponse])
 async def get_goals(
-    user_id: Optional[uuid.UUID] = Query(None, description="Filter by user ID"),
     category: Optional[str] = Query(None, description="Filter by category"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     is_completed: Optional[bool] = Query(None, description="Filter by completion status"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get goals with optional filtering"""
-    query = select(Goal)
-    
-    if user_id:
-        query = query.where(Goal.user_id == user_id)
+    """Get goals for the authenticated user with optional filtering"""
+    query = select(Goal).where(Goal.user_id == current_user.id)
     
     if category:
         query = query.where(Goal.category == category)
@@ -125,10 +128,14 @@ async def get_goals(
 @router.get("/{goal_id}", response_model=GoalResponse)
 async def get_goal(
     goal_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get a specific goal by ID"""
-    query = select(Goal).where(Goal.id == goal_id)
+    """Get a specific goal by ID (only if owned by current user)"""
+    query = select(Goal).where(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id
+    )
     result = await db.execute(query)
     goal = result.scalar_one_or_none()
     
@@ -141,10 +148,14 @@ async def get_goal(
 async def update_goal(
     goal_id: uuid.UUID,
     goal_update: GoalUpdate,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update a goal"""
-    query = select(Goal).where(Goal.id == goal_id)
+    """Update a goal (only if owned by current user)"""
+    query = select(Goal).where(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id
+    )
     result = await db.execute(query)
     goal = result.scalar_one_or_none()
     
@@ -176,10 +187,14 @@ async def update_goal(
 @router.delete("/{goal_id}")
 async def delete_goal(
     goal_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a goal"""
-    query = select(Goal).where(Goal.id == goal_id)
+    """Delete a goal (only if owned by current user)"""
+    query = select(Goal).where(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id
+    )
     result = await db.execute(query)
     goal = result.scalar_one_or_none()
     
@@ -194,11 +209,15 @@ async def delete_goal(
 @router.get("/{goal_id}/progress", response_model=GoalProgress)
 async def get_goal_progress(
     goal_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get goal progress with detailed information"""
+    """Get goal progress with detailed information (only if owned by current user)"""
     # Get goal
-    goal_query = select(Goal).where(Goal.id == goal_id)
+    goal_query = select(Goal).where(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id
+    )
     goal_result = await db.execute(goal_query)
     goal = goal_result.scalar_one_or_none()
     
@@ -243,14 +262,18 @@ async def get_goal_progress(
 async def contribute_to_goal(
     goal_id: uuid.UUID,
     amount: float,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Add contribution to a goal"""
+    """Add contribution to a goal (only if owned by current user)"""
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Contribution amount must be greater than 0")
     
     # Get goal
-    goal_query = select(Goal).where(Goal.id == goal_id)
+    goal_query = select(Goal).where(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id
+    )
     goal_result = await db.execute(goal_query)
     goal = goal_result.scalar_one_or_none()
     
@@ -275,9 +298,14 @@ async def contribute_to_goal(
 @router.get("/user/{user_id}/overview", response_model=List[GoalProgress])
 async def get_user_goals_overview(
     user_id: uuid.UUID,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get overview of all active goals for a user"""
+    """Get overview of all active goals for a user (own goals only)"""
+    # Users can only access their own goal overview
+    if str(current_user.id) != str(user_id):
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's goal overview")
+    
     # Check if user exists
     user_query = select(User).where(User.id == user_id)
     user_result = await db.execute(user_query)

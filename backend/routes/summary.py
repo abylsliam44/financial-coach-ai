@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel
 
 from data.database import get_db
-from models import Transaction
+from models import Transaction, User
 from utils.filters import get_summary_filters
+from auth.security import get_current_active_user
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -34,16 +35,26 @@ class DailySummary(BaseModel):
 async def get_summary(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get total income, expenses, and net balance"""
-    filters = get_summary_filters(start_date, end_date)
+    """Get total income, expenses, and net balance for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     # Get income summary
     income_query = select(
         func.sum(Transaction.amount).label("total_income"),
         func.count(Transaction.id).label("income_count")
-    ).where(and_(Transaction.type == "income", *filters))
+    ).where(and_(Transaction.type == "income", *base_filters))
     
     income_result = await db.execute(income_query)
     income_data = income_result.first()
@@ -54,7 +65,7 @@ async def get_summary(
     expense_query = select(
         func.sum(Transaction.amount).label("total_expenses"),
         func.count(Transaction.id).label("expense_count")
-    ).where(and_(Transaction.type == "expense", *filters))
+    ).where(and_(Transaction.type == "expense", *base_filters))
     
     expense_result = await db.execute(expense_query)
     expense_data = expense_result.first()
@@ -72,17 +83,27 @@ async def get_summary(
 async def get_summary_by_category(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get expense breakdown by category"""
-    filters = get_summary_filters(start_date, end_date)
+    """Get expense breakdown by category for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     query = select(
         Transaction.category,
         func.sum(Transaction.amount).label("total_amount"),
         func.count(Transaction.id).label("transaction_count")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         Transaction.category
     ).order_by(
@@ -105,10 +126,20 @@ async def get_summary_by_category(
 async def get_summary_by_day(
     start_date: Optional[date] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter until date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get totals grouped by date"""
-    filters = get_summary_filters(start_date, end_date)
+    """Get totals grouped by date for the authenticated user"""
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == current_user.id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     # Get daily income
     income_query = select(
@@ -116,7 +147,7 @@ async def get_summary_by_day(
         func.sum(Transaction.amount).label("total_income"),
         func.count(Transaction.id).label("income_count")
     ).where(
-        and_(Transaction.type == "income", *filters)
+        and_(Transaction.type == "income", *base_filters)
     ).group_by(
         func.date(Transaction.date)
     )
@@ -130,7 +161,7 @@ async def get_summary_by_day(
         func.sum(Transaction.amount).label("total_expenses"),
         func.count(Transaction.id).label("expense_count")
     ).where(
-        and_(Transaction.type == "expense", *filters)
+        and_(Transaction.type == "expense", *base_filters)
     ).group_by(
         func.date(Transaction.date)
     )

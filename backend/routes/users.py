@@ -208,20 +208,27 @@ async def get_user_stats(
     if not user_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="User not found")
     
-    # For now, we'll get all transactions since we don't have user-transaction relations yet
-    # This will be updated when we add user-transaction relationships
-    filters = get_summary_filters(start_date, end_date)
+    # Build base filters including user_id
+    base_filters = [Transaction.user_id == user_id]
+    
+    # Add date filters if provided
+    if start_date:
+        base_filters.append(Transaction.date >= start_date)
+    
+    if end_date:
+        end_date_plus_one = datetime.combine(end_date, datetime.max.time())
+        base_filters.append(Transaction.date <= end_date_plus_one)
     
     # Get basic stats
     income_query = select(
         func.sum(Transaction.amount).label("total_income"),
         func.count(Transaction.id).label("income_count")
-    ).where(and_(Transaction.type == "income", *filters))
+    ).where(and_(Transaction.type == "income", *base_filters))
     
     expense_query = select(
         func.sum(Transaction.amount).label("total_expenses"),
         func.count(Transaction.id).label("expense_count")
-    ).where(and_(Transaction.type == "expense", *filters))
+    ).where(and_(Transaction.type == "expense", *base_filters))
     
     income_result = await db.execute(income_query)
     expense_result = await db.execute(expense_query)
@@ -237,26 +244,43 @@ async def get_user_stats(
     category_query = select(
         Transaction.category,
         func.count(Transaction.id).label("count")
-    ).where(*filters).group_by(Transaction.category).order_by(func.count(Transaction.id).desc())
+    ).where(*base_filters).group_by(Transaction.category).order_by(func.count(Transaction.id).desc())
     
     category_result = await db.execute(category_query)
     favorite_category = None
-    if category_result.first():
-        favorite_category = category_result.first().category
+    category_row = category_result.first()
+    if category_row:
+        favorite_category = category_row.category
     
-    # Get most active month
-    month_query = select(
-        func.date_trunc('month', Transaction.date).label("month"),
-        func.count(Transaction.id).label("count")
-    ).where(*filters).group_by(func.date_trunc('month', Transaction.date)).order_by(func.count(Transaction.id).desc())
+    # Get most active month - simplified approach to avoid GROUP BY issues
+    # Get all transactions and find the month with the most transactions
+    all_transactions_query = select(
+        Transaction.date
+    ).where(*base_filters).order_by(Transaction.date.desc())
     
-    month_result = await db.execute(month_query)
+    all_transactions_result = await db.execute(all_transactions_query)
+    all_transactions = all_transactions_result.scalars().all()
+    
     most_active_month = None
-    if month_result.first():
-        most_active_month = month_result.first().month.strftime("%B %Y")
+    if all_transactions:
+        # Group transactions by month manually
+        month_counts = {}
+        for transaction_date in all_transactions:
+            month_key = transaction_date.strftime("%Y-%m")
+            month_counts[month_key] = month_counts.get(month_key, 0) + 1
+        
+        # Find the month with the most transactions
+        if month_counts:
+            most_active_month_key = max(month_counts, key=month_counts.get)
+            # Convert to readable format
+            try:
+                month_date = datetime.strptime(most_active_month_key, "%Y-%m")
+                most_active_month = month_date.strftime("%B %Y")
+            except ValueError:
+                most_active_month = None
     
     # Calculate average transaction amount
-    avg_query = select(func.avg(Transaction.amount)).where(*filters)
+    avg_query = select(func.avg(Transaction.amount)).where(*base_filters)
     avg_result = await db.execute(avg_query)
     average_amount = avg_result.scalar() or 0.0
     
@@ -290,10 +314,10 @@ async def get_user_profile(
         raise HTTPException(status_code=404, detail="User not found")
     
     # Get stats
-    stats = await get_user_stats(user_id, db=db, current_user=current_user)
+    stats = await get_user_stats(user_id, start_date=None, end_date=None, current_user=current_user, db=db)
     
-    # Get recent transactions (last 5)
-    recent_query = select(Transaction).order_by(Transaction.date.desc()).limit(5)
+    # Get recent transactions (last 5) for this user
+    recent_query = select(Transaction).where(Transaction.user_id == user_id).order_by(Transaction.date.desc()).limit(5)
     recent_result = await db.execute(recent_query)
     recent_transactions = []
     

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import Column, String, Float, DateTime, Text, Boolean, ForeignKey, Integer, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -15,13 +15,37 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
+    # One-to-one relationship with UserProfile
+    profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    
+    # One-to-one relationship with UserStats
+    stats = relationship("UserStats", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, username={self.username})>"
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    monthly_income = Column(Float, nullable=False)
+    weekly_hours = Column(Integer, default=40, nullable=False)
+    weeks_per_month = Column(Integer, default=4, nullable=False)
+    currency = Column(String(10), default="KZT", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # One-to-one relationship with User
+    user = relationship("User", back_populates="profile")
+    
+    def __repr__(self):
+        return f"<UserProfile(id={self.id}, user_id={self.user_id}, monthly_income={self.monthly_income})>"
 
 class Transaction(Base):
     __tablename__ = "transactions"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     amount = Column(Float, nullable=False)
     type = Column(String(10), nullable=False)  # "income" or "expense"
     category = Column(String(100), nullable=False)
@@ -71,4 +95,21 @@ class Goal(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     def __repr__(self):
-        return f"<Goal(id={self.id}, name={self.name}, target_amount={self.target_amount})>" 
+        return f"<Goal(id={self.id}, name={self.name}, target_amount={self.target_amount})>"
+
+class UserStats(Base):
+    __tablename__ = "user_stats"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    xp = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=1, nullable=False)
+    streak = Column(Integer, default=0, nullable=False)
+    total_minutes_lost = Column(Integer, default=0, nullable=False)
+    last_transaction_date = Column(Date, nullable=True)
+    
+    # One-to-one relationship with User
+    user = relationship("User", back_populates="stats")
+    
+    def __repr__(self):
+        return f"<UserStats(id={self.id}, user_id={self.user_id}, level={self.level}, xp={self.xp})>" 

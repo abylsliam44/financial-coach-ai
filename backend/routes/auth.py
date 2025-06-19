@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 import uuid
 
 from data.database import get_db
-from models import User
+from models import User, UserProfile, UserStats
 from auth.security import (
     verify_password, 
     get_password_hash, 
@@ -21,6 +21,11 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 # Pydantic models
 class UserRegister(BaseModel):
+    email: EmailStr
+    username: str
+    password: str
+
+class UserRegisterInput(BaseModel):
     email: EmailStr
     username: str
     password: str
@@ -52,10 +57,10 @@ class PasswordChange(BaseModel):
 
 @router.post("/register", response_model=Token)
 async def register(
-    user_data: UserRegister,
+    user_data: UserRegisterInput,
     db: AsyncSession = Depends(get_db)
 ):
-    """Register a new user"""
+    """Register a new user with profile information"""
     # Check if email already exists
     email_query = select(User).where(User.email == user_data.email)
     email_result = await db.execute(email_query)
@@ -90,6 +95,12 @@ async def register(
     )
     
     db.add(db_user)
+    await db.flush()  # Flush to get the user ID
+    
+    # Create user stats (but NOT user profile - users must create it manually)
+    db_stats = UserStats(user_id=db_user.id)
+    db.add(db_stats)
+    
     await db.commit()
     await db.refresh(db_user)
     
