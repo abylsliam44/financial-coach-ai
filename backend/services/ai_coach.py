@@ -27,7 +27,7 @@ def build_user_context(user: Dict[str, Any], transactions: List[Dict[str, Any]],
 
 async def get_financial_advice(user: Dict[str, Any], message: str, transactions: List[Dict[str, Any]], goals: List[Dict[str, Any]]) -> str:
     if not OPENAI_API_KEY:
-        return "AI service is not available. Please contact support."
+        return "Извините, ИИ-сервис временно недоступен. Пожалуйста, попробуйте позже или обратитесь в службу поддержки."
     try:
         user_context = build_user_context(user, transactions, goals)
         response = await client.chat.completions.create(
@@ -43,4 +43,5 @@ async def get_financial_advice(user: Dict[str, Any], message: str, transactions:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"AI service unavailable: {str(e)}"
+        print(f"AI service error: {str(e)}")  # Для отладки
+        return "Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз через несколько минут."

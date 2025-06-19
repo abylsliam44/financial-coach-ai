@@ -37,7 +37,7 @@ export default function AIChat() {
     setInput("");
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/coach/ask", {
+      const res = await fetch("/api/coach/ask", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -45,11 +45,28 @@ export default function AIChat() {
         },
         body: JSON.stringify({ message: userMessage }),
       });
-      if (!res.ok) throw new Error("Ошибка ответа ИИ");
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        setError("Ваша сессия истекла. Пожалуйста, войдите снова.");
+        setTimeout(() => {
+          window.location.href = "/auth/login";
+        }, 2000);
+        setLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Ошибка ${res.status}: ${res.statusText}`);
+      }
       const data = await res.json();
+      console.log("AI Response:", data);
+      let aiText = data.advice || data.reply || data.message || data.answer || data.text || data.response;
+      if (!aiText) {
+        aiText = `[Нет ответа от ИИ]\n${JSON.stringify(data, null, 2)}`;
+      }
       setMessages((msgs) => [
         ...msgs,
-        { role: "ai", text: data.reply, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+        { role: "ai", text: aiText, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
       ]);
     } catch (e: any) {
       setError(e.message || "Ошибка ответа ИИ");
