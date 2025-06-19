@@ -39,17 +39,6 @@ const reviews = [
   },
 ];
 
-// Плавающие анимированные точки
-function AnimatedDots() {
-  return (
-    <>
-      <div className="absolute top-10 left-10 w-4 h-4 bg-emerald-200 rounded-full animate-pulse opacity-70" />
-      <div className="absolute bottom-20 right-20 w-6 h-6 bg-emerald-300 rounded-full animate-pulse opacity-60" />
-      <div className="absolute top-1/2 left-1/3 w-3 h-3 bg-emerald-400 rounded-full animate-pulse opacity-50" />
-      <div className="absolute bottom-10 left-1/2 w-2 h-2 bg-emerald-300 rounded-full animate-pulse opacity-40" />
-    </>
-  );
-}
 
 // Градиентный фон
 function GradientBg() {
@@ -91,7 +80,6 @@ export default function LandingPage() {
   return (
     <div className="relative min-h-screen flex flex-col bg-white overflow-x-hidden">
       <GradientBg />
-      <AnimatedDots />
       {/* Хедер */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-100">
         <div className="container mx-auto flex items-center justify-between py-4 px-4 md:px-8">
@@ -108,7 +96,7 @@ export default function LandingPage() {
           </nav>
           <div className="hidden md:block">
             <Link to="/auth/login">
-              <Button className="rounded-full px-6 py-2 font-semibold text-emerald-600 border-2 border-emerald-500 bg-white hover:bg-emerald-50 transition-all">Войти</Button>
+              <Button className="rounded-full px-6 py-2 font-bold bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 transition-all duration-300">Войти</Button>
             </Link>
           </div>
           {/* Мобильное меню */}
@@ -125,7 +113,9 @@ export default function LandingPage() {
               <button onClick={() => scrollTo(howRef)} className="text-left py-2 px-2 rounded-xl hover:bg-emerald-50 transition-all">Как работает</button>
               <button onClick={() => scrollTo(reviewsRef)} className="text-left py-2 px-2 rounded-xl hover:bg-emerald-50 transition-all">Отзывы</button>
               <button onClick={() => scrollTo(demoRef)} className="text-left py-2 px-2 rounded-xl hover:bg-emerald-50 transition-all">Демо</button>
-              <Button className="rounded-full w-full mt-2 text-emerald-600 border-2 border-emerald-500 bg-white hover:bg-emerald-50">Войти</Button>
+              <Link to="/auth/login">
+                <Button className="rounded-full w-full mt-2 font-bold bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 transition-all duration-300">Войти</Button>
+              </Link>
             </nav>
           </div>
         )}
@@ -152,7 +142,7 @@ export default function LandingPage() {
         </div>
         {/* Статистика */}
         <div className="w-full md:w-1/2 flex justify-center md:justify-end mb-8 md:mb-0">
-          <Card className="rounded-2xl shadow-xl bg-white/90 backdrop-blur p-6 flex flex-row gap-6 items-center min-w-[320px] max-w-[400px]">
+          <Card className="rounded-2xl shadow-xl bg-white/90 backdrop-blur p-6 flex flex-row gap-6 items-center min-w-[420px] md:min-w-[540px] max-w-[700px]">
             <CardContent className="flex flex-col gap-2 items-center">
               <span className="bg-emerald-100 rounded-xl p-2 mb-1"><Sparkles className="text-emerald-500 w-6 h-6" /></span>
               <span className="text-2xl font-bold text-gray-900">{stats.users}+</span>
@@ -201,23 +191,23 @@ export default function LandingPage() {
       <section ref={demoRef} className="container mx-auto py-20 px-4 md:px-8 flex flex-col md:flex-row items-center gap-12 transition-all duration-1000">
         {/* Мокап приложения */}
         <div className="w-full md:w-1/2 flex justify-center">
-          <Card className="bg-gray-900 text-white rounded-2xl shadow-2xl p-8 min-w-[320px] max-w-[400px] relative overflow-hidden">
+          <Card className="bg-gradient-to-br from-emerald-500 via-emerald-400 to-emerald-600 text-white rounded-2xl shadow-2xl p-8 min-w-[320px] max-w-[400px] relative overflow-hidden border-0">
             <div className="flex justify-between items-center mb-4">
-              <span className="font-semibold text-lg">Твой баланс</span>
-              <span className="flex items-center gap-1 text-emerald-400 font-bold"><Zap className="w-5 h-5" /> 1,250 XP</span>
+              <span className="font-semibold text-lg text-white/90">Твой баланс</span>
+              <span className="flex items-center gap-1 text-yellow-300 font-bold drop-shadow"><Zap className="w-5 h-5" /> 1,250 XP</span>
             </div>
-            <div className="text-3xl font-extrabold mb-2">₸ 125,000</div>
+            <div className="text-3xl font-extrabold mb-2 text-white drop-shadow">₸ 125,000</div>
             <div className="mb-4">
-              <div className="text-xs text-gray-300 mb-1">Цель месяца</div>
-              <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-3 bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: "75%" }} />
+              <div className="text-xs text-white/80 mb-1">Цель месяца</div>
+              <div className="w-full h-3 bg-white/30 rounded-full overflow-hidden">
+                <div className="h-3 bg-yellow-300 rounded-full transition-all duration-1000" style={{ width: "75%" }} />
               </div>
-              <div className="text-xs text-gray-300 mt-1">75%</div>
+              <div className="text-xs text-white/80 mt-1">75%</div>
             </div>
             <div className="flex flex-col gap-2 mt-4">
-              <div className="flex items-center gap-2"><span className="bg-emerald-500 w-3 h-3 rounded-full" /> Еда <span className="ml-auto">₸ 15,000</span></div>
-              <div className="flex items-center gap-2"><span className="bg-emerald-400 w-3 h-3 rounded-full" /> Транспорт <span className="ml-auto">₸ 8,500</span></div>
-              <div className="flex items-center gap-2"><span className="bg-emerald-300 w-3 h-3 rounded-full" /> Развлечения <span className="ml-auto">₸ 12,000</span></div>
+              <div className="flex items-center gap-2"><span className="bg-white/80 w-3 h-3 rounded-full" /> Еда <span className="ml-auto text-white/90">₸ 15,000</span></div>
+              <div className="flex items-center gap-2"><span className="bg-yellow-200 w-3 h-3 rounded-full" /> Транспорт <span className="ml-auto text-white/90">₸ 8,500</span></div>
+              <div className="flex items-center gap-2"><span className="bg-yellow-400 w-3 h-3 rounded-full" /> Развлечения <span className="ml-auto text-white/90">₸ 12,000</span></div>
             </div>
           </Card>
         </div>
@@ -280,9 +270,9 @@ export default function LandingPage() {
         <div className="container mx-auto rounded-2xl bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600 p-10 flex flex-col items-center text-center shadow-xl">
           <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">Попробуй прямо сейчас</h2>
           <p className="text-lg text-white/90 mb-8">Присоединяйся к тысячам пользователей, которые уже взяли свои финансы под контроль</p>
-          <Button className="rounded-full px-10 py-4 text-lg font-bold bg-gray-900 text-white hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-lg">
+          <Link to="/auth/register" className="rounded-full px-10 py-4 text-lg font-bold bg-gray-900 text-white hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-lg">
             Начать экономить <TrendingUp className="w-5 h-5" />
-          </Button>
+          </Link>
           <div className="text-white/80 mt-4">Бесплатно • Без обязательств • Результат за 7 дней</div>
         </div>
       </section>
@@ -318,7 +308,8 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="container mx-auto mt-8 text-center text-white/60 text-sm">
-          © 2024 BaiAI. Все права защищены.
+          © 2025 BaiAI. Все права защищены.<br />
+          Разработчик продукта — Абылай Сләмжанов.
         </div>
       </footer>
     </div>

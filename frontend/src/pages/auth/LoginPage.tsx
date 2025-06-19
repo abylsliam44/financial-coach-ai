@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthFormInput } from "../../components/auth/AuthFormInput";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../AuthContext";
 
 interface LoginForm {
   email: string;
@@ -13,19 +14,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const auth = useAuth();
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Неверный email или пароль");
-      const result = await res.json();
-      localStorage.setItem("token", result.access_token);
+      await auth.login(data.email, data.password);
       navigate("/dashboard");
     } catch (e: any) {
       setError(e.message || "Ошибка входа");

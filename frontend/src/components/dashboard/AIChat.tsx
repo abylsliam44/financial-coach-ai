@@ -95,8 +95,8 @@ export default function AIChat() {
                 {msg.role === "ai" ? <Bot className="w-5 h-5 text-emerald-500" /> : <User className="w-5 h-5 text-gray-400" />}
                 <span className={`text-xs ${msg.role === "ai" ? "text-gray-500" : "text-emerald-500"}`}>{msg.role === "ai" ? "ИИ" : "Вы"}</span>
               </div>
-              <div className={`rounded-xl px-4 py-2 text-sm ${msg.role === "ai" ? "bg-gray-100 text-gray-900" : "bg-emerald-500 text-white"}`}>{msg.text}</div>
-              <span className="text-xs text-gray-400 mt-1">{msg.time}</span>
+              <div className={`rounded-xl px-4 py-2 text-xs ${msg.role === "ai" ? "bg-gray-100 text-gray-900" : "bg-emerald-500 text-white"}`}>{msg.text}</div>
+              <span className="text-[10px] text-gray-400 mt-1">{msg.time}</span>
             </div>
           </div>
         ))}
@@ -107,7 +107,7 @@ export default function AIChat() {
                 <Bot className="w-5 h-5 text-emerald-500 animate-pulse" />
                 <span className="text-xs text-gray-500">ИИ</span>
               </div>
-              <div className="rounded-xl px-4 py-2 text-sm bg-gray-100 text-gray-900 animate-pulse">...</div>
+              <div className="rounded-xl px-4 py-2 text-xs bg-gray-100 text-gray-900 animate-pulse">...</div>
             </div>
           </div>
         )}
