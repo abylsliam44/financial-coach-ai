@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  financial_coach_api:
+  backend:
     build: ./backend
     container_name: financial_coach_api
     ports:
@@ -43,6 +43,15 @@ services:
     restart: unless-stopped
     command: ["/app/entrypoint.sh"]
 
+  frontend:
+    build: ./frontend
+    container_name: financial_coach_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: financial_coach_pgadmin
@@ -58,4 +67,4 @@ services:
 
 volumes:
   postgres_data:
-  pgadmin_data:
+  pgadmin_data: 
