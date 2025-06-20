@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthFormInput } from "../../components/auth/AuthFormInput";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../AuthContext";
 
 interface RegisterForm {
   email: string;
@@ -14,22 +15,17 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const auth = useAuth();
 
   const onSubmit = async (data: RegisterForm) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Ошибка регистрации");
-      const result = await res.json();
-      localStorage.setItem("token", result.access_token);
-      navigate("/dashboard");
+      await auth.register(data.email, data.username, data.password);
+      navigate("/onboarding", { replace: true });
     } catch (e: any) {
-      setError(e.message || "Ошибка регистрации");
+      const errorMessage = e.response?.data?.detail || e.message || "Ошибка регистрации";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

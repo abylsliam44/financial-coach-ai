@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthFormInput } from "../../components/auth/AuthFormInput";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
 
 interface LoginForm {
@@ -13,15 +13,15 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const navigate = useNavigate();
   const auth = useAuth();
+  const navigate = useNavigate();
 
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
     setError("");
     try {
-      await auth.login(data.email, data.password);
-      navigate("/dashboard");
+      const { hasProfile } = await auth.login(data.email, data.password);
+      navigate(hasProfile ? "/dashboard" : "/onboarding", { replace: true });
     } catch (e: any) {
       setError(e.message || "Ошибка входа");
     } finally {
@@ -34,6 +34,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center">
         <img src="/vite.svg" alt="BaiAI Logo" className="w-16 h-16 mb-4" />
         <h2 className="text-2xl font-bold mb-6 text-gray-900">Вход в BaiAI</h2>
+        
         <form className="w-full" onSubmit={handleSubmit(onSubmit)}>
           <AuthFormInput
             label="Email"

@@ -7,67 +7,126 @@ interface User {
   username: string;
 }
 
+interface LoginResult {
+  hasProfile: boolean;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
   token: string | null;
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  hasProfile: boolean | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => void;
-  checkAuth: () => Promise<void>;
+  updateProfileStatus: (status: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   token: null,
   user: null,
-  login: async () => {},
+  hasProfile: null,
+  isLoading: true,
+  login: async () => ({ hasProfile: false }),
+  register: async () => {},
   logout: () => {},
-  checkAuth: async () => {},
+  updateProfileStatus: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!token);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      checkAuth();
-    }
-    // eslint-disable-next-line
-  }, [token]);
-
-  const login = async (email: string, password: string) => {
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem("token");
+      if (storedToken) {
+        api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+        setToken(storedToken);
+        await checkUserAndProfile();
+      }
+      setIsLoading(false);
+    };
+    initializeAuth();
+  }, []);
+  
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     const res = await api.post("/auth/login", { email, password });
     const { access_token } = res.data;
     localStorage.setItem("token", access_token);
+    api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
     setToken(access_token);
+    
+    const profileRes = await api.get("/onboarding/status");
+    const profileStatus = profileRes.data.has_profile;
+    
+    await checkUserAndProfile();
+    return { hasProfile: profileStatus };
+  };
+
+  const register = async (email: string, username: string, password: string) => {
+    const res = await api.post("/auth/register", { email, username, password });
+    const { access_token } = res.data;
+    localStorage.setItem("token", access_token);
+    api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+    setToken(access_token);
+    
+    // After registration, user is authenticated but has no profile
     setIsAuthenticated(true);
-    await checkAuth();
+    setHasProfile(false);
   };
 
   const logout = () => {
     localStorage.removeItem("token");
+    delete api.defaults.headers.common["Authorization"];
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    setHasProfile(null);
     window.location.replace("/auth/login");
   };
 
-  const checkAuth = async () => {
+  const checkUserAndProfile = async () => {
     try {
-      const res = await api.get("/auth/me");
-      setUser(res.data);
+      const userRes = await api.get("/auth/me");
+      setUser(userRes.data);
       setIsAuthenticated(true);
-    } catch {
+      
+      const profileRes = await api.get("/onboarding/status");
+      setHasProfile(profileRes.data.has_profile);
+    } catch (error) {
+      // This can happen if the token is invalid
       logout();
     }
   };
 
+  const updateProfileStatus = (status: boolean) => {
+    setHasProfile(status);
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, token, user, login, logout, checkAuth }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        token,
+        user,
+        hasProfile,
+        isLoading,
+        login,
+        register,
+        logout,
+        updateProfileStatus,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

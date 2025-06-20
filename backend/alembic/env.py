@@ -28,8 +28,9 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
-    """Get database URL from environment variables"""
-    return os.getenv("DATABASE_URL", "postgresql://finance_user:securepassword123@db:5432/finance_db")
+    """Get database URL from environment variables, always sync for alembic."""
+    url = os.getenv("ALEMBIC_DB_URL") or os.getenv("DATABASE_URL") or "postgresql://finance_user:securepassword123@db:5432/finance_db"
+    return url.replace("+asyncpg", "")
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

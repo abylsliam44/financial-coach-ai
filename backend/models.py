@@ -29,17 +29,47 @@ class UserProfile(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-    monthly_income = Column(Float, nullable=False)
-    weekly_hours = Column(Integer, default=40, nullable=False)
-    weeks_per_month = Column(Integer, default=4, nullable=False)
-    currency = Column(String(10), default="KZT", nullable=False)
+    
+    # Персональные данные
+    name = Column(String(255), nullable=True)
+    age = Column(Integer, nullable=True)
+    gender = Column(String(50), nullable=True)
+    
+    # Доход
+    monthly_income = Column(Integer, nullable=True)
+    income_source = Column(String(100), nullable=True)
+    income_stability = Column(Integer, nullable=True)  # 1-5
+    
+    # Расходы
+    monthly_expenses = Column(Integer, nullable=True)
+    spending_categories = Column(Text, nullable=True)  # JSON string
+    
+    # Цели
+    goals = Column(Text, nullable=True)  # JSON string
+    
+    # Финансовая психология
+    financial_confidence = Column(Integer, nullable=True)  # 1-5
+    spending_impulsiveness = Column(Integer, nullable=True)  # 1-5
+    financial_stress = Column(Integer, nullable=True)  # 1-5
+    saving_frequency = Column(String(100), nullable=True)
+    
+    # Привычки
+    tracks_expenses = Column(Boolean, nullable=True)
+    used_financial_apps = Column(String(100), nullable=True)
+    wants_motivation = Column(Boolean, nullable=True)
+    
+    # Старые поля (для обратной совместимости)
+    weekly_hours = Column(Integer, default=40, nullable=True)
+    weeks_per_month = Column(Integer, default=4, nullable=True)
+    currency = Column(String(10), default="KZT", nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # One-to-one relationship with User
     user = relationship("User", back_populates="profile")
     
     def __repr__(self):
-        return f"<UserProfile(id={self.id}, user_id={self.user_id}, monthly_income={self.monthly_income})>"
+        return f"<UserProfile(id={self.id}, user_id={self.user_id}, name={self.name})>"
 
 class Transaction(Base):
     __tablename__ = "transactions"

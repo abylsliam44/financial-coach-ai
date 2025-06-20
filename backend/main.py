@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from data.database import get_db, engine
 from models import Base
-from routes import transactions, summary, categories, users, budgets, goals, analytics, auth, coach, user_stats, gamification, user_profile
+from routes import transactions, summary, categories, users, budgets, goals, analytics, auth, coach, user_stats, gamification, user_profile, onboarding
 
 load_dotenv()
 
@@ -38,6 +38,7 @@ app.include_router(coach.router)
 app.include_router(user_stats.router)
 app.include_router(gamification.router)
 app.include_router(user_profile.router)
+app.include_router(onboarding.router)
 
 @app.on_event("startup")
 async def startup_event():
