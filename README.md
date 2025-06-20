@@ -115,4 +115,3 @@ curl -X GET "http://localhost:8000/auth/me" \
 
 ### Goals
 - `POST /goals/` - Create a financial goal
-- `
