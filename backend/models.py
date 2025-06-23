@@ -142,4 +142,19 @@ class UserStats(Base):
     user = relationship("User", back_populates="stats")
     
     def __repr__(self):
-        return f"<UserStats(id={self.id}, user_id={self.user_id}, level={self.level}, xp={self.xp})>" 
+        return f"<UserStats(id={self.id}, user_id={self.user_id}, level={self.level}, xp={self.xp})>"
+
+class Account(Base):
+    __tablename__ = "accounts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    balance = Column(Float, default=0.0, nullable=False)
+    icon = Column(String(20), nullable=True)  # emoji или тип (card, wallet, deposit)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="accounts")
+
+    def __repr__(self):
+        return f"<Account(id={self.id}, name={self.name}, balance={self.balance}, icon={self.icon})>" 

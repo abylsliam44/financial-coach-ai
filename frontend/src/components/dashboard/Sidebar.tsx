@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
-import { Home, Target, List, Flame, Trophy, Settings, User as UserIcon } from "lucide-react";
+import { Home, Target, List, Flame, Trophy, Settings, User as UserIcon, CreditCard } from "lucide-react";
 
 const navItems = [
   { label: "Обзор", icon: Home, path: "/dashboard" },
+  { label: "Счета", icon: CreditCard, path: "/dashboard/accounts" },
   { label: "Цели", icon: Target, path: "/goals" },
   { label: "Траты", icon: List, path: "/transactions" },
   { label: "Стрики", icon: Flame, path: "/streaks" },

@@ -1,7 +1,8 @@
 import Sidebar from "../../components/dashboard/Sidebar";
 import MainContent from "../../components/dashboard/MainContent";
 import AIChat from "../../components/dashboard/AIChat";
-import { Header } from "../../components/ui/Header";
+import AccountsPage from "./AccountsPage";
+import { Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuth } from "../../AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -15,15 +16,22 @@ export default function DashboardPage() {
     }
   }, [token, navigate]);
   return (
-    <div className="flex h-screen bg-white fade-in overflow-hidden">
+    <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">
-          <MainContent />
-        </main>
-      </div>
-      <AIChat />
+      <main className="flex-1 flex flex-col">
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-8">
+            <Routes>
+              <Route path="/" element={<MainContent />} />
+              <Route path="/accounts" element={<AccountsPage />} />
+              {/* другие вкладки дашборда */}
+            </Routes>
+          </div>
+          <div className="w-[380px] border-l border-gray-100 bg-white flex flex-col">
+            <AIChat />
+          </div>
+        </div>
+      </main>
     </div>
   );
 } 
