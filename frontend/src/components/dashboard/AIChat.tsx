@@ -3,6 +3,7 @@ import { Send, Bot, User, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import api from "../../api";
 
 interface Message {
   id: number;
@@ -72,39 +73,25 @@ export default function AIChat() {
     setInput("");
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/coach/ask", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ message: userMessageContent }),
-      });
+      const res = await api.post("/coach/ask", { message: userMessageContent });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ detail: "Произошла неизвестная ошибка" }));
-        throw new Error(errorData.detail);
+      if (!res.data) {
+        throw new Error("Не удалось получить ответ от сервера");
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("Не удалось получить ответ от сервера");
-
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        setMessages(prev => 
-          prev.map(msg => 
-            msg.id === tempAiMessageId 
-              ? { ...msg, content: msg.content + chunk }
-              : msg
-          )
-        );
-      }
+      // For streaming response, we need to handle it differently
+      // For now, let's assume it's a regular response
+      const aiResponse = res.data.response || res.data.message || res.data;
+      
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === tempAiMessageId 
+            ? { ...msg, content: aiResponse }
+            : msg
+        )
+      );
     } catch (e: any) {
-      setError(e.message);
+      setError(e.response?.data?.detail || e.message || "Произошла неизвестная ошибка");
       // Remove temporary AI message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempAiMessageId));
     } finally {

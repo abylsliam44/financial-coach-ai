@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 from dotenv import load_dotenv
@@ -17,6 +18,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Create API router with /api prefix
+api_router = APIRouter()
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -26,21 +30,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(transactions.router)
-app.include_router(summary.router)
-app.include_router(categories.router)
-app.include_router(budgets.router)
-app.include_router(goals.router)
-app.include_router(analytics.router)
-app.include_router(coach.router)
-app.include_router(user_stats.router)
-app.include_router(gamification.router)
-app.include_router(user_profile.router)
-app.include_router(onboarding.router)
-app.include_router(accounts_router)
+# Include routers in api_router
+api_router.include_router(auth.router)
+api_router.include_router(users.router)
+api_router.include_router(transactions.router)
+api_router.include_router(summary.router)
+api_router.include_router(categories.router)
+api_router.include_router(budgets.router)
+api_router.include_router(goals.router)
+api_router.include_router(analytics.router)
+api_router.include_router(coach.router)
+api_router.include_router(user_stats.router)
+api_router.include_router(gamification.router)
+api_router.include_router(user_profile.router)
+api_router.include_router(onboarding.router)
+api_router.include_router(accounts_router)
+
+# Include api_router with /api prefix
+app.include_router(api_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():
@@ -59,18 +66,19 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs",
         "endpoints": {
-            "auth": "/auth/",
-            "users": "/users/",
-            "transactions": "/transactions/",
-            "summary": "/summary/",
-            "categories": "/categories/",
-            "budgets": "/budgets/",
-            "goals": "/goals/",
-            "analytics": "/analytics/",
-            "coach": "/coach/",
-            "user-stats": "/user-stats/",
-            "gamification": "/gamification/",
-            "user-profile": "/user-profile/"
+            "auth": "/api/auth/",
+            "users": "/api/users/",
+            "transactions": "/api/transactions/",
+            "summary": "/api/summary/",
+            "categories": "/api/categories/",
+            "budgets": "/api/budgets/",
+            "goals": "/api/goals/",
+            "analytics": "/api/analytics/",
+            "coach": "/api/coach/",
+            "user-stats": "/api/user-stats/",
+            "gamification": "/api/gamification/",
+            "user-profile": "/api/user-profile/",
+            "accounts": "/api/accounts/"
         }
     }
 

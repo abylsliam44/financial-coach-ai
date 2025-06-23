@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import api from "./api";
 
 // Моковые данные для отзывов
 const reviews = [
@@ -58,9 +59,9 @@ export default function LandingPage() {
 
   // Пример запроса к бэкенду (замени на свой endpoint)
   useEffect(() => {
-    fetch("/api/stats")
-      .then((res) => res.ok ? res.json() : Promise.reject())
-      .then((data) => {
+    api.get("/stats")
+      .then((response) => {
+        const data = response.data;
         if (data?.users && data?.goals && data?.save) setStats(data);
       })
       .catch(() => {});

@@ -38,7 +38,7 @@ const AppRoutes = () => {
       <Route path="/auth/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
       {/* Protected Routes */}
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
-      <Route path="/dashboard" element={<ProtectedRoute requireProfile={true}><DashboardPage /></ProtectedRoute>} />
+      <Route path="/dashboard/*" element={<ProtectedRoute requireProfile={true}><DashboardPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute requireProfile={true}><ProfilePage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

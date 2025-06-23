@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Home, Target, List, Flame, Trophy, Settings, User as UserIcon, CreditCard } from "lucide-react";
+import api from "../../api";
 
 const navItems = [
   { label: "Обзор", icon: Home, path: "/dashboard" },
@@ -21,13 +22,17 @@ export default function Sidebar() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    fetch("/auth/me", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => {
+    
+    api.get("/auth/me")
+      .then((response) => {
+        const data = response.data;
         setUser({
           name: data.username || data.name || "Пользователь",
           email: data.email || "",
         });
+      })
+      .catch((error) => {
+        console.error("Error fetching user data:", error);
       });
   }, []);
 

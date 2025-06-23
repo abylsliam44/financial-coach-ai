@@ -17,7 +17,7 @@ export interface Account {
   icon: string;
 }
 
-export default function Accounts() {
+function AccountsInner() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
@@ -29,14 +29,23 @@ export default function Accounts() {
   const [editName, setEditName] = useState("");
   const [editBalance, setEditBalance] = useState("");
   const [editIcon, setEditIcon] = useState(ICONS[0].value);
+  const [fatalError, setFatalError] = useState<string | null>(null);
 
   const fetchAccounts = async () => {
-    const res = await api.get("/accounts");
-    setAccounts(res.data);
+    try {
+      const res = await api.get("/accounts");
+      setAccounts(res.data);
+    } catch (err: any) {
+      setFatalError("Ошибка загрузки счетов: " + (err?.response?.data?.detail || err.message || "Unknown error"));
+    }
   };
 
   useEffect(() => {
-    fetchAccounts();
+    try {
+      fetchAccounts();
+    } catch (err: any) {
+      setFatalError("Ошибка инициализации: " + (err?.message || "Unknown error"));
+    }
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -89,6 +98,10 @@ export default function Accounts() {
       setLoading(false);
     }
   };
+
+  if (fatalError) {
+    return <div className="text-red-500 p-8 text-center">{fatalError}</div>;
+  }
 
   return (
     <div>
@@ -178,4 +191,19 @@ export default function Accounts() {
       )}
     </div>
   );
+}
+
+export default function Accounts() {
+  const [error, setError] = useState<Error | null>(null);
+
+  if (error) {
+    return <div className="text-red-500 p-8 text-center">Ошибка рендера: {error.message}</div>;
+  }
+
+  try {
+    return <AccountsInner />;
+  } catch (err: any) {
+    setError(err);
+    return <div className="text-red-500 p-8 text-center">Ошибка рендера: {err.message}</div>;
+  }
 } 
