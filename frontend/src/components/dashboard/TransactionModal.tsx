@@ -9,6 +9,14 @@ interface Transaction {
   category: string;
   description: string;
   date: string;
+  account_id?: string;
+}
+
+interface Account {
+  id: string;
+  name: string;
+  balance: number;
+  icon: string;
 }
 
 interface TransactionModalProps {
@@ -26,6 +34,31 @@ const CATEGORIES_ICONS: { [key: string]: string } = {
 const EXPENSE_CATEGORIES = Object.keys(CATEGORIES_ICONS).filter(k => !["Зарплата", "Фриланс", "Инвестиции", "Подарки"].includes(k)).map(name => ({ name, icon: CATEGORIES_ICONS[name] }));
 const INCOME_CATEGORIES = ["Зарплата", "Фриланс", "Инвестиции", "Подарки", "Другое"].map(name => ({ name, icon: CATEGORIES_ICONS[name] || "💵" }));
 
+const LOCAL_STORAGE_CATEGORIES_KEY = "bai-user-categories";
+
+function getUserCategories(type: 'income' | 'expense'): Array<{ name: string; icon: string }> {
+  try {
+    const data = localStorage.getItem(LOCAL_STORAGE_CATEGORIES_KEY);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return (parsed[type] as Array<{ name: string; icon: string }>) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUserCategory(type: 'income' | 'expense', name: string, icon: string) {
+  const data = localStorage.getItem(LOCAL_STORAGE_CATEGORIES_KEY);
+  let parsed: { income: Array<{ name: string; icon: string }>; expense: Array<{ name: string; icon: string }> } = { income: [], expense: [] };
+  if (data) {
+    try { parsed = JSON.parse(data); } catch {}
+  }
+  if (!parsed[type].some((c: { name: string; icon: string }) => c.name === name)) {
+    parsed[type].push({ name, icon });
+    localStorage.setItem(LOCAL_STORAGE_CATEGORIES_KEY, JSON.stringify(parsed));
+  }
+}
+
 export default function TransactionModal({ isOpen, onClose, onSave, transaction }: TransactionModalProps) {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [form, setForm] = useState<Transaction>({
@@ -34,17 +67,26 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
     category: "",
     description: "",
     date: new Date().toISOString().slice(0, 10),
+    account_id: "",
   });
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [userCategories, setUserCategories] = useState<Array<{ name: string; icon: string }>>([]);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("💡");
 
   useEffect(() => {
     if (isOpen) {
+      api.get("/accounts").then(res => setAccounts(res.data));
+      setUserCategories(getUserCategories(form.type));
       if (transaction) {
         setForm({
           ...transaction,
           amount: String(transaction.amount),
           date: new Date(transaction.date).toISOString().slice(0, 10),
+          account_id: transaction.account_id || "",
         });
         setMode('view');
       } else {
@@ -54,14 +96,16 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
           category: "",
           description: "",
           date: new Date().toISOString().slice(0, 10),
+          account_id: accounts[0]?.id || "",
         });
         setMode('edit');
       }
       setFormError("");
     }
-  }, [transaction, isOpen]);
+    // eslint-disable-next-line
+  }, [transaction, isOpen, form.type]);
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -109,47 +153,62 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
     }
   };
 
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    saveUserCategory(form.type, newCategoryName, newCategoryIcon);
+    setUserCategories((prev: Array<{ name: string; icon: string }>) => [...prev, { name: newCategoryName, icon: newCategoryIcon }]);
+    setShowAddCategory(false);
+    setNewCategoryName("");
+    setNewCategoryIcon("💡");
+  };
+
   if (!isOpen) return null;
 
   const renderViewMode = () => (
     <>
-      <div className="space-y-4">
-        <div className="flex justify-between items-start">
-            <div>
-                 <p className="text-sm text-gray-500">Сумма</p>
-                 <p className={`text-2xl font-bold ${form.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {form.type === 'income' ? '+' : '-'}₸{Number(form.amount).toLocaleString()}
-                </p>
-            </div>
-            <div className="text-right">
-                <p className="text-sm text-gray-500">Категория</p>
-                <p className="font-semibold text-gray-800">{CATEGORIES_ICONS[form.category] || ''} {form.category}</p>
-            </div>
+      <div className="space-y-6">
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-xl font-bold text-gray-900">Детали транзакции</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
         </div>
-        <div>
-            <p className="text-sm text-gray-500">Описание</p>
-            <p className="font-semibold text-gray-800">{form.description}</p>
+        <div className="flex justify-between items-center mb-2">
+          <div>
+            <p className="text-sm text-gray-500 mb-1">Сумма</p>
+            <p className={`text-3xl font-bold ${form.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>{form.type === 'income' ? '+' : '-'}₸{Number(form.amount).toLocaleString()}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500 mb-1">Категория</p>
+            <div className="flex items-center gap-2 font-semibold text-gray-800 text-lg">
+              <span className="text-xl">{CATEGORIES_ICONS[form.category] || ''}</span>
+              <span>{form.category}</span>
+            </div>
+          </div>
         </div>
-        <div>
-            <p className="text-sm text-gray-500">Дата</p>
-            <p className="font-semibold text-gray-800">{new Date(form.date).toLocaleDateString('ru-RU')}</p>
+        <div className="mb-2">
+          <p className="text-sm text-gray-500 mb-1">Описание</p>
+          <p className="font-medium text-gray-900 text-base">{form.description}</p>
+        </div>
+        <div className="mb-2">
+          <p className="text-sm text-gray-500 mb-1">Дата</p>
+          <p className="font-medium text-gray-900 text-base">{new Date(form.date).toLocaleDateString('ru-RU')}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 pt-6">
-        <button onClick={onClose} className="w-full py-2 rounded-lg bg-gray-200 text-gray-700 font-semibold flex items-center justify-center gap-2">Закрыть</button>
-        <button onClick={() => setMode('edit')} className="w-full py-2 rounded-lg bg-blue-500 text-white font-semibold flex items-center justify-center gap-2">
+      <div className="flex items-center gap-3 pt-6">
+        <button onClick={onClose} className="w-full py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition">Закрыть</button>
+        <button onClick={() => setMode('edit')} className="w-full py-2 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition flex items-center justify-center gap-2">
           <Edit size={16} /> Редактировать
         </button>
       </div>
-       <button onClick={handleDelete} disabled={formLoading} className="w-full mt-2 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold flex items-center justify-center gap-2">
-          {formLoading ? <Loader2 className="animate-spin"/> : <><Trash2 size={16}/> Удалить</>}
+      <button onClick={handleDelete} disabled={formLoading} className="w-full mt-3 py-2 rounded-lg bg-red-100 hover:bg-red-200 text-red-600 font-semibold flex items-center justify-center gap-2 transition">
+        {formLoading ? <Loader2 className="animate-spin"/> : <><Trash2 size={16}/> Удалить</>}
       </button>
     </>
   );
 
   const renderEditMode = () => {
-      const categoriesByType = form.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-      const isFormValid = form.amount && form.category && form.description;
+      const baseCategories = form.type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+      const categoriesByType = [...baseCategories, ...userCategories];
+      const isFormValid = form.amount && form.category && form.description && form.account_id;
       const isEditMode = !!transaction?.id;
 
       return (
@@ -176,8 +235,25 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
                 </button>
               ))}
             </div>
+            <button type="button" className="mt-2 text-emerald-600 hover:underline text-xs" onClick={() => setShowAddCategory(v => !v)}>+ Создать категорию</button>
+            {showAddCategory && (
+              <div className="flex items-center gap-2 mt-2">
+                <input type="text" className="border rounded px-2 py-1 text-sm" placeholder="Название" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
+                <input type="text" className="border rounded px-2 py-1 text-sm w-12 text-center" maxLength={2} value={newCategoryIcon} onChange={e => setNewCategoryIcon(e.target.value)} />
+                <button type="button" className="bg-emerald-500 text-white rounded px-3 py-1 text-sm" onClick={handleAddCategory}>Добавить</button>
+              </div>
+            )}
           </div>
-           <div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Счет</label>
+            <select name="account_id" value={form.account_id} onChange={handleFormChange} className="w-full mt-1 p-2 border rounded-lg">
+              <option value="">Выберите счет</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.icon} {acc.name} ({acc.balance.toLocaleString()} ₸)</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="text-sm font-medium text-gray-600">Дата</label>
             <input type="date" name="date" value={form.date} onChange={handleFormChange} className="w-full mt-1 p-2 border rounded-lg" />
           </div>

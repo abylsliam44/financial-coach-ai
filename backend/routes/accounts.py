@@ -9,7 +9,11 @@ from data.database import get_db
 from models import Account, User
 from auth.security import get_current_active_user
 
-router = APIRouter(prefix="/accounts", tags=["accounts"])
+router = APIRouter(
+    prefix="/accounts",
+    tags=["accounts"],
+    dependencies=[Depends(get_current_active_user)]
+)
 
 class AccountCreate(BaseModel):
     name: str
@@ -85,4 +89,11 @@ async def delete_account(
         raise HTTPException(status_code=404, detail="Account not found")
     await db.delete(account)
     await db.commit()
-    return {"message": "Account deleted"} 
+    return {"message": "Account deleted"}
+
+@router.get("/summary")
+async def get_accounts_summary(current_user: User = Depends(get_current_active_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Account).where(Account.user_id == current_user.id))
+    accounts = result.scalars().all()
+    total_balance = sum(acc.balance for acc in accounts)
+    return {"total_balance": total_balance} 

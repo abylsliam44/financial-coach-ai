@@ -99,12 +99,31 @@ function AccountsInner() {
     }
   };
 
+  // Аналитика
+  const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  const avgBalance = accounts.length > 0 ? totalBalance / accounts.length : 0;
+
   if (fatalError) {
     return <div className="text-red-500 p-8 text-center">{fatalError}</div>;
   }
 
   return (
     <div>
+      {/* Аналитическая панель */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-xl shadow p-4 flex flex-col items-start">
+          <div className="text-xs text-gray-500 mb-1">Общий баланс</div>
+          <div className="text-2xl font-bold text-gray-900">₸{totalBalance.toLocaleString()}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4 flex flex-col items-start">
+          <div className="text-xs text-gray-500 mb-1">Количество счетов</div>
+          <div className="text-2xl font-bold text-gray-900">{accounts.length}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4 flex flex-col items-start">
+          <div className="text-xs text-gray-500 mb-1">Средний баланс</div>
+          <div className="text-2xl font-bold text-gray-900">₸{avgBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">Счета</h2>
         <Button onClick={() => setShowModal(true)} variant="outline">
@@ -112,21 +131,31 @@ function AccountsInner() {
         </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {accounts.map((acc) => (
-          <Card key={acc.id} className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{acc.icon}</span>
-              <div>
-                <div className="font-semibold text-gray-900">{acc.name}</div>
-                <div className="text-gray-500 text-sm">Баланс: <span className="font-mono">{acc.balance.toLocaleString()} ₸</span></div>
+        {accounts.map((acc) => {
+          const percent = totalBalance > 0 ? (acc.balance / totalBalance) * 100 : 0;
+          return (
+            <Card key={acc.id} className="p-5 flex flex-col gap-2 bg-white rounded-xl shadow group transition hover:shadow-md">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="text-3xl">{acc.icon}</span>
+                <div>
+                  <div className="font-semibold text-gray-900 text-lg">{acc.name}</div>
+                  <div className="text-gray-500 text-sm">₸{acc.balance.toLocaleString()}</div>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => openEdit(acc)} className="text-blue-500"><Edit className="w-5 h-5" /></Button>
-              <Button variant="ghost" onClick={() => handleDelete(acc.id)} className="text-red-500"><Trash2 className="w-5 h-5" /></Button>
-            </div>
-          </Card>
-        ))}
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>Доля:</span>
+                <span className="font-semibold text-gray-700">{percent.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{ width: `${percent}%` }}></div>
+              </div>
+              <div className="flex gap-2 mt-2 self-end">
+                <Button variant="ghost" onClick={() => openEdit(acc)} className="text-gray-400 hover:text-emerald-500"><Edit className="w-5 h-5" /></Button>
+                <Button variant="ghost" onClick={() => handleDelete(acc.id)} className="text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5" /></Button>
+              </div>
+            </Card>
+          );
+        })}
         {accounts.length === 0 && <div className="text-gray-500 col-span-full">Нет счетов</div>}
       </div>
 

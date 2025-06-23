@@ -3,7 +3,6 @@ import { Send, Bot, User, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import api from "../../api";
 
 interface Message {
   id: number;
@@ -15,6 +14,32 @@ const initialMessage: Message = {
   id: 0,
   role: 'ai',
   content: "Привет! Я — BaiAI, ваш личный финансовый коуч. Чем могу помочь сегодня?"
+};
+
+const streamAIResponse = async (userMessageContent: string, onChunk: (chunk: string) => void) => {
+  const token = localStorage.getItem("token");
+  const response = await fetch("/api/coach/ask", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ message: userMessageContent })
+  });
+  if (!response.body) throw new Error("Нет ответа от сервера");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let done = false;
+  let fullText = "";
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    if (value) {
+      const chunk = decoder.decode(value);
+      fullText += chunk;
+      onChunk(fullText);
+    }
+  }
 };
 
 export default function AIChat() {
@@ -60,39 +85,20 @@ export default function AIChat() {
   
   const sendMessage = async () => {
     if (!input.trim()) return;
-
     setLoading(true);
     setError("");
     const userMessageContent = input;
-    
-    // Optimistic UI update
     const newUserMessage: Message = { id: Date.now(), role: "user", content: userMessageContent };
     const tempAiMessageId = Date.now() + 1;
     const newAiMessage: Message = { id: tempAiMessageId, role: "ai", content: "" };
     setMessages(prev => [...prev, newUserMessage, newAiMessage]);
     setInput("");
-
     try {
-      const res = await api.post("/coach/ask", { message: userMessageContent });
-
-      if (!res.data) {
-        throw new Error("Не удалось получить ответ от сервера");
-      }
-
-      // For streaming response, we need to handle it differently
-      // For now, let's assume it's a regular response
-      const aiResponse = res.data.response || res.data.message || res.data;
-      
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempAiMessageId 
-            ? { ...msg, content: aiResponse }
-            : msg
-        )
-      );
+      await streamAIResponse(userMessageContent, (partial) => {
+        setMessages(prev => prev.map(msg => msg.id === tempAiMessageId ? { ...msg, content: partial } : msg));
+      });
     } catch (e: any) {
-      setError(e.response?.data?.detail || e.message || "Произошла неизвестная ошибка");
-      // Remove temporary AI message on error
+      setError(e.message || "Произошла неизвестная ошибка");
       setMessages(prev => prev.filter(msg => msg.id !== tempAiMessageId));
     } finally {
       setLoading(false);
@@ -112,41 +118,43 @@ export default function AIChat() {
         </Button>
       </div>
 
-      {/* Messages */}
-      <div ref={messagesEndRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex gap-3">
-            <div className="shrink-0 pt-1">
-              {msg.role === "ai" ? (
-                <Bot className="w-5 h-5 text-emerald-500" />
-              ) : (
-                <User className="w-5 h-5 text-gray-400" />
-              )}
+      {/* Messages (отдельный скролл) */}
+      <div className="flex-1 min-h-0">
+        <div className="overflow-y-auto h-full max-h-[calc(100vh-180px)] p-4 space-y-4" style={{scrollbarGutter:'stable'}}>
+          {messages.map((msg) => (
+            <div key={msg.id} className="flex gap-3">
+              <div className="shrink-0 pt-1">
+                {msg.role === "ai" ? (
+                  <Bot className="w-5 h-5 text-emerald-500" />
+                ) : (
+                  <User className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+              <div className={`rounded-xl px-4 py-2 text-sm flex-1 ${
+                msg.role === "ai" 
+                  ? "bg-gray-50 text-gray-800" 
+                  : "bg-emerald-500 text-white"
+              }`}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                  }}
+                >
+                  {msg.content || (msg.role === 'ai' ? '...' : '')}
+                </ReactMarkdown>
+              </div>
             </div>
-            <div className={`rounded-xl px-4 py-2 text-sm flex-1 ${
-              msg.role === "ai" 
-                ? "bg-gray-50 text-gray-800" 
-                : "bg-emerald-500 text-white"
-            }`}>
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                }}
-              >
-                {msg.content || (msg.role === 'ai' ? '...' : '')}
-              </ReactMarkdown>
-            </div>
-          </div>
-        ))}
-        <div />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-gray-100">
+      <div className="p-4 border-t border-gray-100 bg-white">
         <div className="relative">
           <textarea
             value={input}

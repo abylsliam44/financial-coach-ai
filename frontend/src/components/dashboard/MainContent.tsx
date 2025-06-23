@@ -33,6 +33,7 @@ function formatDate(dateStr: string) {
 export default function MainContent() {
   const [balance, setBalance] = useState<any>(null);
   const [balancePrev, setBalancePrev] = useState<any>(null);
+  const [accountsTotal, setAccountsTotal] = useState<number>(0);
   const [goals, setGoals] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +43,10 @@ export default function MainContent() {
   // State for the modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<any>(null);
+
+  const fetchAccountsTotal = () => {
+    api.get("/accounts/summary").then(res => setAccountsTotal(res.data.total_balance || 0)).catch(() => setAccountsTotal(0));
+  };
 
   const fetchData = () => {
     if (!user?.id) {
@@ -69,6 +74,7 @@ export default function MainContent() {
         setBalancePrev(statsPrev.data);
         setGoals(Array.isArray(goals.data) ? goals.data : []);
         setTransactions(Array.isArray(txs.data) ? txs.data.slice(0, 5) : []);
+        fetchAccountsTotal();
       })
       .catch((e) => setError("Ошибка загрузки данных: " + (e.response?.data?.detail || e.message)))
       .finally(() => setLoading(false));
@@ -76,6 +82,7 @@ export default function MainContent() {
 
   useEffect(() => {
     fetchData();
+    fetchAccountsTotal();
   }, [user]); // Re-run when user object is available
 
   const handleOpenModal = (tx: any = null) => {
@@ -99,6 +106,8 @@ export default function MainContent() {
   }
 
   // --- UI ---
+  const showNoTxHint = accountsTotal > 0 && (!transactions || transactions.length === 0);
+
   return (
     <div className="p-8 flex flex-col gap-8 max-w-screen-xl mx-auto w-full overflow-x-hidden">
       {loading ? (
@@ -107,6 +116,18 @@ export default function MainContent() {
         <div className="text-red-500 text-center font-medium">{error}</div>
       ) : (
         <>
+          {showNoTxHint && (
+            <div className="flex items-center justify-center mb-4 animate-fade-in">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-6 py-4 flex items-center gap-4 shadow-sm">
+                <span className="text-3xl">✨</span>
+                <div>
+                  <div className="font-semibold text-emerald-700 text-lg mb-1">Добавьте первую транзакцию!</div>
+                  <div className="text-gray-600 text-sm">У вас есть счета, но пока нет ни одной транзакции.<br/>Добавьте доход или расход — и дашборд начнет строить аналитику.</div>
+                </div>
+                <button onClick={() => handleOpenModal()} className="ml-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 font-semibold shadow transition">+ Транзакция</button>
+              </div>
+            </div>
+          )}
           {/* Баланс */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Общий баланс */}
@@ -115,7 +136,7 @@ export default function MainContent() {
                 <CardTitle>Общий баланс</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-gray-900 mb-2">₸{balance?.net_balance?.toLocaleString() ?? "0"}</div>
+                <div className="text-3xl font-bold text-gray-900 mb-2">₸{accountsTotal.toLocaleString()}</div>
                 {balancePrev && balance?.net_balance != null && balancePrev?.net_balance != null && (
                   <div className="text-xs flex items-center gap-1 font-medium mt-1">
                     {getDelta(balance.net_balance, balancePrev.net_balance) > 0 ? (
@@ -273,7 +294,7 @@ export default function MainContent() {
       {/* Кнопка добавить транзакцию слева снизу */}
       <button
         onClick={() => handleOpenModal()}
-        className="fixed bottom-8 left-8 bg-emerald-500 text-white rounded-full p-4 shadow-lg hover:bg-emerald-600 transition-transform transform hover:scale-110 z-40"
+        className="fixed bottom-8 left-24 bg-emerald-500 text-white rounded-full p-4 shadow-lg hover:bg-emerald-600 transition-transform transform hover:scale-110 z-40"
       >
         <Plus className="w-8 h-8" />
       </button>

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from data.database import get_db
-from models import User, Transaction, Goal
+from models import User, Transaction, Goal, UserProfile
 from services.ai_coach import get_financial_advice
 from auth.security import get_current_user
 
@@ -34,6 +34,11 @@ async def ask_coach(
     goals_result = await db.execute(goals_query)
     goals = goals_result.scalars().all()
     
+    # Явно загружаем профиль пользователя
+    profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
+    profile_result = await db.execute(profile_query)
+    profile = profile_result.scalar_one_or_none()
+    
     # Convert to dict for AI context
     user_dict = {
         "id": str(current_user.id),
@@ -41,10 +46,10 @@ async def ask_coach(
         "email": current_user.email
     }
     
-    if current_user.profile:
+    if profile:
         user_dict.update({
-            "name": current_user.profile.name,
-            "age": current_user.profile.age,
+            "name": profile.name,
+            "age": profile.age,
             # Add other profile fields if needed by the prompt
         })
     

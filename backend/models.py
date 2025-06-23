@@ -76,6 +76,7 @@ class Transaction(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True)
     amount = Column(Float, nullable=False)
     type = Column(String(10), nullable=False)  # "income" or "expense"
     category = Column(String(100), nullable=False)
@@ -83,7 +84,7 @@ class Transaction(Base):
     date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     def __repr__(self):
-        return f"<Transaction(id={self.id}, amount={self.amount}, type={self.type}, category={self.category})>"
+        return f"<Transaction(id={self.id}, amount={self.amount}, type={self.type}, category={self.category}, account_id={self.account_id})>"
 
 class Category(Base):
     __tablename__ = "categories"
