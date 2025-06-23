@@ -1,15 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 import uuid
+import json
+import os
+import shutil
 
 from data.database import get_db
 from models import User, UserProfile
 from auth.security import get_current_active_user
 
 router = APIRouter(prefix="/user-profile", tags=["user-profile"])
+
+# Директория для загрузки фото
+UPLOAD_DIRECTORY = "./uploads/avatars"
+os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
 
 class UserProfileCreate(BaseModel):
     monthly_income: float = Field(..., gt=0, description="Monthly income in currency units", example=5000.0)
@@ -28,21 +35,48 @@ class UserProfileCreate(BaseModel):
         }
 
 class UserProfileUpdate(BaseModel):
-    monthly_income: Optional[float] = Field(None, gt=0, description="Monthly income in currency units")
-    weekly_hours: Optional[int] = Field(None, gt=0, le=168, description="Weekly working hours (1-168)")
-    weeks_per_month: Optional[int] = Field(None, gt=0, le=5, description="Weeks per month (1-5)")
-    currency: Optional[str] = Field(None, max_length=10, description="Currency code")
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    monthly_income: Optional[int] = None
+    income_source: Optional[str] = None
+    income_stability: Optional[int] = Field(None, ge=1, le=5)
+    monthly_expenses: Optional[int] = None
+    spending_categories: Optional[List[str]] = None
+    goals: Optional[List[str]] = None
+    financial_confidence: Optional[int] = Field(None, ge=1, le=5)
+    spending_impulsiveness: Optional[int] = Field(None, ge=1, le=5)
+    financial_stress: Optional[int] = Field(None, ge=1, le=5)
+    saving_frequency: Optional[str] = None
 
 class UserProfileResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    monthly_income: float
-    weekly_hours: int
-    weeks_per_month: int
-    currency: str
-    
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    monthly_income: Optional[int] = None
+    income_source: Optional[str] = None
+    income_stability: Optional[int] = None
+    monthly_expenses: Optional[int] = None
+    spending_categories: Optional[List[str]] = []
+    goals: Optional[List[str]] = []
+    financial_confidence: Optional[int] = None
+    spending_impulsiveness: Optional[int] = None
+    financial_stress: Optional[int] = None
+    saving_frequency: Optional[str] = None
+    profile_photo_url: Optional[str] = None
+
     class Config:
         from_attributes = True
+        
+    def __init__(self, **data):
+        # Преобразование JSON строк в списки
+        if isinstance(data.get('spending_categories'), str):
+            data['spending_categories'] = json.loads(data['spending_categories'])
+        if isinstance(data.get('goals'), str):
+            data['goals'] = json.loads(data['goals'])
+        super().__init__(**data)
 
 @router.post("/", response_model=UserProfileResponse)
 async def create_user_profile(
@@ -112,54 +146,34 @@ async def update_user_profile(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Update the existing user profile for the authenticated user
-    
-    - Accepts partial updates
-    - Only updates provided fields
-    - Maintains data integrity
+    Обновить профиль текущего пользователя.
+    Принимает частичные данные для обновления.
     """
-    
-    # Get existing profile
     profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
     profile_result = await db.execute(profile_query)
     profile = profile_result.scalar_one_or_none()
     
     if not profile:
-        raise HTTPException(
-            status_code=404,
-            detail="User profile not found. Please create your profile first using POST /user-profile/."
-        )
-    
-    # Validate weekly hours if provided
-    if profile_update.weekly_hours is not None and profile_update.weekly_hours > 80:
-        raise HTTPException(
-            status_code=400,
-            detail="Weekly hours cannot exceed 80 hours. Please enter a realistic value."
-        )
-    
-    # Validate weeks per month if provided
-    if profile_update.weeks_per_month is not None and profile_update.weeks_per_month > 5:
-        raise HTTPException(
-            status_code=400,
-            detail="Weeks per month cannot exceed 5. Please enter a realistic value."
-        )
-    
-    # Update fields
+        raise HTTPException(status_code=404, detail="Профиль не найден.")
+
     update_data = profile_update.dict(exclude_unset=True)
+    
+    # Преобразование списков в JSON-строки
+    if 'spending_categories' in update_data:
+        update_data['spending_categories'] = json.dumps(update_data['spending_categories'])
+    if 'goals' in update_data:
+        update_data['goals'] = json.dumps(update_data['goals'])
+
     for field, value in update_data.items():
         setattr(profile, field, value)
     
     await db.commit()
     await db.refresh(profile)
+
+    profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
+    profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}.jpg" if os.path.exists(f"{UPLOAD_DIRECTORY}/{profile.user_id}.jpg") else None
     
-    return UserProfileResponse(
-        id=profile.id,
-        user_id=profile.user_id,
-        monthly_income=profile.monthly_income,
-        weekly_hours=profile.weekly_hours,
-        weeks_per_month=profile.weeks_per_month,
-        currency=profile.currency
-    )
+    return UserProfileResponse(**profile_data)
 
 @router.get("/", response_model=UserProfileResponse)
 async def get_user_profile(
@@ -167,11 +181,9 @@ async def get_user_profile(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get the current user's profile
-    
-    Returns the complete profile information
+    Получить профиль текущего пользователя.
+    Возвращает полную информацию о профиле, включая ссылку на фото.
     """
-    
     profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
     profile_result = await db.execute(profile_query)
     profile = profile_result.scalar_one_or_none()
@@ -179,17 +191,17 @@ async def get_user_profile(
     if not profile:
         raise HTTPException(
             status_code=404,
-            detail="User profile not found. Please create your profile first using POST /user-profile/."
+            detail="Профиль пользователя не найден. Сначала завершите онбординг."
         )
     
-    return UserProfileResponse(
-        id=profile.id,
-        user_id=profile.user_id,
-        monthly_income=profile.monthly_income,
-        weekly_hours=profile.weekly_hours,
-        weeks_per_month=profile.weeks_per_month,
-        currency=profile.currency
-    )
+    # Преобразование объекта SQLAlchemy в словарь
+    profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
+    
+    # Добавляем URL фото профиля
+    # В реальном приложении это будет URL из CDN или статического сервера
+    profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}.jpg" if os.path.exists(f"{UPLOAD_DIRECTORY}/{profile.user_id}.jpg") else None
+
+    return UserProfileResponse(**profile_data)
 
 @router.delete("/")
 async def delete_user_profile(
@@ -215,4 +227,45 @@ async def delete_user_profile(
     await db.delete(profile)
     await db.commit()
     
-    return {"message": "User profile deleted successfully"} 
+    return {"message": "User profile deleted successfully"}
+
+@router.post("/photo", response_model=UserProfileResponse)
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Загрузить или обновить фото профиля (аватар).
+    """
+    profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
+    profile_result = await db.execute(profile_query)
+    profile = profile_result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль не найден, сначала создайте его.")
+
+    # Проверка типа файла
+    if file.content_type not in ["image/jpeg", "image/png"]:
+        raise HTTPException(status_code=400, detail="Неверный формат файла. Используйте JPG или PNG.")
+        
+    # Сохраняем файл с именем user_id
+    file_extension = ".jpg" if file.content_type == "image/jpeg" else ".png"
+    file_path = os.path.join(UPLOAD_DIRECTORY, f"{profile.user_id}{file_extension}")
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Обновляем URL в базе (опционально, если храним)
+    # setattr(profile, 'profile_photo_url', file_path) # Пример
+    await db.commit()
+    await db.refresh(profile)
+
+    profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
+    profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}{file_extension}"
+    
+    return UserProfileResponse(**profile_data)
+
+# Роут для отдачи статичных файлов (аватаров)
+from fastapi.staticfiles import StaticFiles
+router.mount("/uploads", StaticFiles(directory="uploads"), name="uploads") 

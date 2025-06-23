@@ -5,10 +5,7 @@ interface User {
   id: string;
   email: string;
   username: string;
-}
-
-interface LoginResult {
-  hasProfile: boolean;
+  created_at: string;
 }
 
 interface AuthContextType {
@@ -17,7 +14,7 @@ interface AuthContextType {
   user: User | null;
   hasProfile: boolean | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => void;
   updateProfileStatus: (status: boolean) => void;
@@ -29,7 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   hasProfile: null,
   isLoading: true,
-  login: async () => ({ hasProfile: false }),
+  login: async () => {},
   register: async () => {},
   logout: () => {},
   updateProfileStatus: () => {},
@@ -50,39 +47,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem("token");
       if (storedToken) {
-        api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
         setToken(storedToken);
+        api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
         await checkUserAndProfile();
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     initializeAuth();
   }, []);
   
-  const login = async (email: string, password: string): Promise<LoginResult> => {
-    const res = await api.post("/auth/login", { email, password });
-    const { access_token } = res.data;
-    localStorage.setItem("token", access_token);
-    api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
-    setToken(access_token);
-    
-    const profileRes = await api.get("/onboarding/status");
-    const profileStatus = profileRes.data.has_profile;
-    
-    await checkUserAndProfile();
-    return { hasProfile: profileStatus };
+  const login = async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const res = await api.post("/auth/login", { email, password });
+      const { access_token } = res.data;
+      localStorage.setItem("token", access_token);
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      setToken(access_token);
+      
+      await checkUserAndProfile();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const register = async (email: string, username: string, password: string) => {
-    const res = await api.post("/auth/register", { email, username, password });
-    const { access_token } = res.data;
-    localStorage.setItem("token", access_token);
-    api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
-    setToken(access_token);
-    
-    // After registration, user is authenticated but has no profile
-    setIsAuthenticated(true);
-    setHasProfile(false);
+    setIsLoading(true);
+    try {
+      const res = await api.post("/auth/register", { email, username, password });
+      const { access_token } = res.data;
+      localStorage.setItem("token", access_token);
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      setToken(access_token);
+      
+      // After registration, user is authenticated but has no profile
+      await checkUserAndProfile(); // This will set the user
+      setHasProfile(false); // Explicitly set, as they just registered
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const logout = () => {
@@ -96,6 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const checkUserAndProfile = async () => {
+    setIsLoading(true);
     try {
       const userRes = await api.get("/auth/me");
       setUser(userRes.data);
@@ -105,7 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setHasProfile(profileRes.data.has_profile);
     } catch (error) {
       // This can happen if the token is invalid
-      logout();
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem("token");
+    } finally {
+      setIsLoading(false);
     }
   };
 

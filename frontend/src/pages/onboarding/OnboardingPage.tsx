@@ -9,6 +9,7 @@ import { Step3Expenses } from '../../components/onboarding/Step3Expenses';
 import { Step4Goals } from '../../components/onboarding/Step4Goals';
 import { Step5Psychology } from '../../components/onboarding/Step5Psychology';
 import { Step6Habits } from '../../components/onboarding/Step6Habits';
+import { Header } from '../../components/ui/Header';
 import api from '../../api';
 
 const OnboardingContent: React.FC = () => {
@@ -104,18 +105,23 @@ const OnboardingContent: React.FC = () => {
   const CurrentStepComponent = steps[currentStep - 1].component;
 
   return (
-    <StepCardWrapper
-      title={steps[currentStep - 1].title}
-      subtitle={steps[currentStep - 1].subtitle}
-      currentStep={currentStep}
-      totalSteps={totalSteps}
-      onNext={handleNext}
-      onBack={handleBack}
-      canGoNext={canGoNext() && !isSubmitting}
-      isLastStep={currentStep === totalSteps}
-    >
-      <CurrentStepComponent />
-    </StepCardWrapper>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50">
+      <Header title="Настройка профиля" showUserInfo={false} />
+      <div className="flex items-center justify-center px-4 py-8">
+        <StepCardWrapper
+          title={steps[currentStep - 1].title}
+          subtitle={steps[currentStep - 1].subtitle}
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          onNext={handleNext}
+          onBack={handleBack}
+          canGoNext={canGoNext() && !isSubmitting}
+          isLastStep={currentStep === totalSteps}
+        >
+          <CurrentStepComponent />
+        </StepCardWrapper>
+      </div>
+    </div>
   );
 };
 

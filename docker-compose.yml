@@ -41,7 +41,7 @@ services:
     volumes:
       - ./backend:/app
     restart: unless-stopped
-    command: ["/app/entrypoint.sh"]
+    command: sh -c "chmod +x /app/entrypoint.sh && /app/entrypoint.sh"
 
   frontend:
     build: ./frontend

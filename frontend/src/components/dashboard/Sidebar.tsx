@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Home, Target, List, Flame, Trophy, Settings, User as UserIcon } from "lucide-react";
 
 const navItems = [
-  { label: "Обзор", icon: Home },
-  { label: "Цели", icon: Target },
-  { label: "Траты", icon: List },
-  { label: "Стрики", icon: Flame },
-  { label: "Достижения", icon: Trophy },
-  { label: "Настройки", icon: Settings },
+  { label: "Обзор", icon: Home, path: "/dashboard" },
+  { label: "Цели", icon: Target, path: "/goals" },
+  { label: "Траты", icon: List, path: "/transactions" },
+  { label: "Стрики", icon: Flame, path: "/streaks" },
+  { label: "Достижения", icon: Trophy, path: "/achievements" },
+  { label: "Профиль", icon: UserIcon, path: "/profile" },
+  { label: "Настройки", icon: Settings, path: "/settings" },
 ];
 
 export default function Sidebar() {
@@ -37,15 +39,16 @@ export default function Sidebar() {
         </div>
         <nav className="flex flex-col gap-1 mt-4 px-2">
           {navItems.map((item, i) => (
-            <Button
-              key={item.label}
-              variant={active === i ? "default" : "ghost"}
-              className={`w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-medium ${active === i ? "bg-emerald-100 text-emerald-600" : "text-gray-700 hover:bg-gray-50"}`}
-              onClick={() => setActive(i)}
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </Button>
+            <Link to={item.path} key={item.label}>
+              <Button
+                variant={active === i ? "default" : "ghost"}
+                className={`w-full justify-start gap-3 rounded-xl px-4 py-3 text-base font-medium ${active === i ? "bg-emerald-100 text-emerald-600" : "text-gray-700 hover:bg-gray-50"}`}
+                onClick={() => setActive(i)}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </Button>
+            </Link>
           ))}
         </nav>
       </div>
