@@ -4,6 +4,7 @@ from fastapi.routing import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
 
 from data.database import get_db, engine
 from models import Base
@@ -48,6 +49,9 @@ api_router.include_router(accounts_router)
 
 # Include api_router with /api prefix
 app.include_router(api_router, prefix="/api")
+
+os.makedirs("backend/uploads/avatars", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
 
 @app.on_event("startup")
 async def startup_event():

@@ -80,7 +80,6 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
   useEffect(() => {
     if (isOpen) {
       api.get("/accounts").then(res => setAccounts(res.data));
-      setUserCategories(getUserCategories(form.type));
       if (transaction) {
         setForm({
           ...transaction,
@@ -103,7 +102,11 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
       setFormError("");
     }
     // eslint-disable-next-line
-  }, [transaction, isOpen, form.type]);
+  }, [transaction, isOpen]);
+
+  useEffect(() => {
+    setUserCategories(getUserCategories(form.type));
+  }, [form.type]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -214,8 +217,18 @@ export default function TransactionModal({ isOpen, onClose, onSave, transaction 
       return (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-lg">
-            <button type="button" onClick={() => setForm({ ...form, type: 'expense', category: '' })} className={`px-4 py-2 rounded-md font-semibold transition-colors ${form.type === 'expense' ? 'bg-white text-red-500 shadow' : 'text-gray-600'}`}>Расход</button>
-            <button type="button" onClick={() => setForm({ ...form, type: 'income', category: '' })} className={`px-4 py-2 rounded-md font-semibold transition-colors ${form.type === 'income' ? 'bg-white text-emerald-500 shadow' : 'text-gray-600'}`}>Доход</button>
+            <button type="button" onClick={() => setForm(f => ({
+              ...f,
+              type: 'expense',
+              category: '',
+              account_id: accounts[0]?.id || ''
+            }))} className={`px-4 py-2 rounded-md font-semibold transition-colors ${form.type === 'expense' ? 'bg-white text-red-500 shadow' : 'text-gray-600'}`}>Расход</button>
+            <button type="button" onClick={() => setForm(f => ({
+              ...f,
+              type: 'income',
+              category: '',
+              account_id: accounts[0]?.id || ''
+            }))} className={`px-4 py-2 rounded-md font-semibold transition-colors ${form.type === 'income' ? 'bg-white text-emerald-500 shadow' : 'text-gray-600'}`}>Доход</button>
           </div>
           <div>
             <label className="text-sm font-medium text-gray-600">Сумма</label>

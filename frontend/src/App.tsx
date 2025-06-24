@@ -5,6 +5,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import OnboardingPage from './pages/onboarding/OnboardingPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import EditProfilePage from './pages/profile/EditProfilePage';
 
 function App() {
   return (
@@ -40,6 +41,7 @@ const AppRoutes = () => {
       <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
       <Route path="/dashboard/*" element={<ProtectedRoute requireProfile={true}><DashboardPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute requireProfile={true}><ProfilePage /></ProtectedRoute>} />
+      <Route path="/profile/edit" element={<ProtectedRoute requireProfile={true}><EditProfilePage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

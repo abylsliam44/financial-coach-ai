@@ -75,4 +75,9 @@ body {
 @keyframes scaleIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+input, input[type='text'], input[type='number'] {
+  background: #fff !important;
+  color: #111 !important;
 } 

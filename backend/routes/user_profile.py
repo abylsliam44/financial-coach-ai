@@ -66,6 +66,7 @@ class UserProfileResponse(BaseModel):
     financial_stress: Optional[int] = None
     saving_frequency: Optional[str] = None
     profile_photo_url: Optional[str] = None
+    user: dict
 
     class Config:
         from_attributes = True
@@ -136,7 +137,12 @@ async def create_user_profile(
         monthly_income=db_profile.monthly_income,
         weekly_hours=db_profile.weekly_hours,
         weeks_per_month=db_profile.weeks_per_month,
-        currency=db_profile.currency
+        currency=db_profile.currency,
+        user={
+            'email': current_user.email,
+            'username': current_user.username,
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+        }
     )
 
 @router.patch("/", response_model=UserProfileResponse)
@@ -172,7 +178,11 @@ async def update_user_profile(
 
     profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
     profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}.jpg" if os.path.exists(f"{UPLOAD_DIRECTORY}/{profile.user_id}.jpg") else None
-    
+    profile_data['user'] = {
+        'email': current_user.email,
+        'username': current_user.username,
+        'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+    }
     return UserProfileResponse(**profile_data)
 
 @router.get("/", response_model=UserProfileResponse)
@@ -182,7 +192,7 @@ async def get_user_profile(
 ):
     """
     Получить профиль текущего пользователя.
-    Возвращает полную информацию о профиле, включая ссылку на фото.
+    Возвращает полную информацию о профиле, включая ссылку на фото и данные пользователя.
     """
     profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
     profile_result = await db.execute(profile_query)
@@ -198,8 +208,14 @@ async def get_user_profile(
     profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
     
     # Добавляем URL фото профиля
-    # В реальном приложении это будет URL из CDN или статического сервера
     profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}.jpg" if os.path.exists(f"{UPLOAD_DIRECTORY}/{profile.user_id}.jpg") else None
+
+    # Добавляем данные пользователя
+    profile_data['user'] = {
+        'email': current_user.email,
+        'username': current_user.username,
+        'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+    }
 
     return UserProfileResponse(**profile_data)
 
@@ -263,7 +279,49 @@ async def upload_profile_photo(
 
     profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
     profile_data['profile_photo_url'] = f"/uploads/avatars/{profile.user_id}{file_extension}"
-    
+    profile_data['user'] = {
+        'email': current_user.email,
+        'username': current_user.username,
+        'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+    }
+    return UserProfileResponse(**profile_data)
+
+@router.delete("/photo", response_model=UserProfileResponse)
+async def delete_profile_photo(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Удалить фото профиля (аватар).
+    """
+    profile_query = select(UserProfile).where(UserProfile.user_id == current_user.id)
+    profile_result = await db.execute(profile_query)
+    profile = profile_result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль не найден.")
+
+    # Удаляем оба возможных файла (jpg и png)
+    removed = False
+    for ext in [".jpg", ".png"]:
+        file_path = os.path.join(UPLOAD_DIRECTORY, f"{profile.user_id}{ext}")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            removed = True
+    if not removed:
+        # Если файлов не было, не считаем это ошибкой
+        pass
+
+    await db.commit()
+    await db.refresh(profile)
+
+    profile_data = {c.name: getattr(profile, c.name) for c in profile.__table__.columns}
+    profile_data['profile_photo_url'] = None
+    profile_data['user'] = {
+        'email': current_user.email,
+        'username': current_user.username,
+        'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+    }
     return UserProfileResponse(**profile_data)
 
 # Роут для отдачи статичных файлов (аватаров)

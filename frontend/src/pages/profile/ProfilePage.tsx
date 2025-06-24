@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api';
 
@@ -7,7 +7,7 @@ import { Header } from '../../components/ui/Header';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { CardHeader, CardTitle } from '../../components/ui/card-header';
-import { User, Mail, Calendar, Edit, Award, TrendingUp, DollarSign, Activity, Zap, Shield } from 'lucide-react';
+import { User, Mail, Calendar, Edit, Award, TrendingUp, Activity, Shield, Camera } from 'lucide-react';
 
 // Тип для данных профиля
 interface ProfileData {
@@ -39,7 +39,7 @@ const StatCard = ({ icon, title, value, colorClass }: { icon: React.ReactNode, t
         {icon}
       </div>
       <div>
-        <p className="text-sm text-gray-500">{title}</p>
+        <p className="text-xs text-gray-500 mb-1">{title}</p>
         <p className="text-lg font-bold">{value}</p>
       </div>
     </CardContent>
@@ -50,6 +50,8 @@ const ProfilePage = () => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const translateAndCapitalize = (word: string, type: 'gender' | 'income' | 'saving_frequency' | 'category') => {
     if (!word) return '';
@@ -107,6 +109,27 @@ const ProfilePage = () => {
     return word.charAt(0).toUpperCase() + word.slice(1);
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploading(true);
+      const file = e.target.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        await api.post('/user-profile/photo', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        // После успешной загрузки — обновить профиль
+        const response = await api.get('/user-profile/');
+        setProfile(response.data);
+      } catch {
+        setError('Ошибка загрузки фото.');
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
@@ -144,12 +167,29 @@ const ProfilePage = () => {
           <div className="max-w-7xl mx-auto">
             {/* --- Шапка профиля --- */}
             <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
-              <div className="relative">
+              <div className="relative group">
                 <img
                   src={profile.profile_photo_url || `https://ui-avatars.com/api/?name=${profile.name}&background=10b981&color=fff&size=128`}
                   alt="Avatar"
                   className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
                 />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-2 right-2 bg-white p-2 rounded-full shadow-md hover:bg-gray-100 opacity-80 group-hover:opacity-100 transition"
+                  title="Изменить фото"
+                  disabled={uploading}
+                >
+                  <Camera className="w-5 h-5 text-emerald-600" />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                  accept="image/png, image/jpeg"
+                />
+                {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-60 rounded-full"><span className="text-xs text-emerald-600">Загрузка...</span></div>}
               </div>
               <div className="text-center md:text-left">
                 <h1 className="text-4xl font-bold text-gray-900">{profile.name || 'Пользователь'}</h1>
@@ -159,13 +199,17 @@ const ProfilePage = () => {
                   <span className="text-sm font-medium text-blue-600 bg-blue-100 px-3 py-1 rounded-full">Верифицирован</span>
                 </div>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex flex-col items-end gap-2">
                 <Link to="/profile/edit">
-                  <Button variant="outline" className="gap-2">
-                    <Edit className="w-4 h-4" />
-                    Редактировать
+                  <Button
+                    variant="default"
+                    className="gap-2 px-6 py-3 text-base font-semibold shadow-lg hover:scale-105 transition-transform duration-150"
+                    title="Редактировать профиль"
+                  >
+                    <Edit className="w-5 h-5 mr-1" /> Редактировать
                   </Button>
                 </Link>
+                <span className="text-xs text-gray-400 mt-1">Измени имя, доход, фото и другие данные</span>
               </div>
             </div>
 
@@ -176,9 +220,23 @@ const ProfilePage = () => {
                 <Card>
                   <CardHeader><CardTitle>Контактная информация</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-3"><Mail className="w-5 h-5 text-gray-400" /><span>{profile.user?.email}</span></div>
-                    <div className="flex items-center gap-3"><User className="w-5 h-5 text-gray-400" /><span>{translateAndCapitalize(profile.gender, 'gender')}, {profile.age} лет</span></div>
-                    <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><span>На проекте с {profile.user?.created_at ? new Date(profile.user.created_at).toLocaleDateString('ru-RU') : 'Недавно'}</span></div>
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                      <span className="text-sm text-gray-600 font-medium">Почта:</span>
+                      <span className="font-mono text-gray-900">{profile.user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <User className="w-5 h-5 text-gray-400" />
+                      <span className="text-sm text-gray-600 font-medium">Пол:</span>
+                      <span className="text-gray-900">{translateAndCapitalize(profile.gender, 'gender')}</span>
+                      <span className="text-sm text-gray-600 font-medium ml-4">Возраст:</span>
+                      <span className="text-gray-900">{profile.age} лет</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-5 h-5 text-gray-400" />
+                      <span className="text-sm text-gray-600 font-medium">Дата регистрации:</span>
+                      <span className="text-gray-900">{profile.user?.created_at ? new Date(profile.user.created_at).toLocaleDateString('ru-RU') : 'Недавно'}</span>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -213,10 +271,25 @@ const ProfilePage = () => {
               <div className="lg:col-span-2 space-y-6">
                 <Card>
                   <CardHeader><CardTitle>Финансовый обзор</CardTitle></CardHeader>
-                  <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <StatCard icon={<DollarSign className="w-6 h-6 text-green-600"/>} title="Месячный доход" value={`₸${profile.monthly_income.toLocaleString()}`} colorClass="bg-green-100" />
-                    <StatCard icon={<TrendingUp className="w-6 h-6 text-red-600"/>} title="Месячные расходы" value={`₸${profile.monthly_expenses.toLocaleString()}`} colorClass="bg-red-100" />
-                    <StatCard icon={<Zap className="w-6 h-6 text-blue-600"/>} title="Источник дохода" value={translateAndCapitalize(profile.income_source, 'income')} colorClass="bg-blue-100" />
+                  <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <StatCard
+                      icon={<span className="text-emerald-500 text-2xl">₸</span>}
+                      title="Месячный доход"
+                      value={`₸${profile.monthly_income?.toLocaleString()}`}
+                      colorClass="bg-emerald-50"
+                    />
+                    <StatCard
+                      icon={<TrendingUp className="w-6 h-6 text-red-400" />}
+                      title="Месячные расходы"
+                      value={`₸${profile.monthly_expenses?.toLocaleString()}`}
+                      colorClass="bg-red-50"
+                    />
+                    <StatCard
+                      icon={<Activity className="w-6 h-6 text-blue-500" />}
+                      title="Источник дохода"
+                      value={translateAndCapitalize(profile.income_source, 'income')}
+                      colorClass="bg-blue-50"
+                    />
                     <StatCard icon={<Shield className="w-6 h-6 text-yellow-600"/>} title="Уверенность" value={`${profile.financial_confidence}/5`} colorClass="bg-yellow-100" />
                     <StatCard icon={<Activity className="w-6 h-6 text-purple-600"/>} title="Стресс" value={`${profile.financial_stress}/5`} colorClass="bg-purple-100" />
                     <StatCard icon={<Award className="w-6 h-6 text-indigo-600"/>} title="Активных целей" value={profile.goals?.length || 0} colorClass="bg-indigo-100" />
